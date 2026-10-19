@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#F7F9FC" />
+  <title>DiaCerto — encontre o melhor horário</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg:#f7f9fc;
+      --surface:#ffffff;
+      --ink:#18283f;
+      --muted:#6d7b8f;
+      --line:#e4eaf2;
+      --blue:#3159d9;
+      --blue-hover:#2349bc;
+      --blue-soft:#eef3ff;
+      --green:#198064;
+      --green-soft:#e8f7f0;
+      --green-border:#bde4d6;
+      --red:#bb3446;
+      --radius:16px;
+      --shadow:0 8px 28px rgba(25,44,80,.035);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.55}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    :focus-visible{outline:3px solid rgba(49,89,217,.24);outline-offset:2px}
+    .topbar{height:74px;border-bottom:1px solid var(--line);background:#fff}
+    .topbar-inner{max-width:1120px;height:100%;margin:auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .brand{display:inline-flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);font-size:19px;font-weight:790;letter-spacing:-.055em}
+    .brand-mark{display:grid;place-items:center;width:35px;height:35px;border-radius:10px;background:var(--blue);color:#fff}
+    .brand-mark svg{width:19px;height:19px}
+    .top-right{display:flex;align-items:center;gap:12px}
+    .top-note{font-size:13px;color:var(--muted);font-weight:550}
+    .wrap{max-width:1120px;margin:0 auto;padding:42px 24px 84px}
+    .narrow{max-width:860px}
+    .eyebrow{font-size:11px;font-weight:800;letter-spacing:.105em;text-transform:uppercase;color:var(--blue);margin:0 0 9px}
+    h1{font-size:clamp(27px,4vw,36px);line-height:1.18;font-weight:780;letter-spacing:-.05em;margin:0}
+    h2{font-size:18px;line-height:1.35;letter-spacing:-.03em;margin:0;font-weight:740}
+    h3{font-size:15px;margin:0;font-weight:750}
+    .lead{font-size:15px;color:var(--muted);margin:12px 0 0;max-width:660px}
+    .heading{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:30px}
+    .heading-copy{min-width:0}
+    .section-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+    .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:var(--radius);padding:27px;margin-bottom:18px}
+    .card.tight{padding:0;overflow:hidden}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;border-radius:10px;padding:11px 17px;font-size:14px;font-weight:700;line-height:1.3;text-decoration:none;white-space:nowrap;transition:background .12s,border-color .12s,color .12s;background:var(--surface);color:var(--ink)}
+    .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue-hover)}
+    .btn-outline{border-color:var(--line)}.btn-outline:hover{border-color:#bfd0ef;background:#f9fbfe}
+    .btn-soft{background:var(--blue-soft);color:var(--blue)}.btn-soft:hover{background:#e3ebff}
+    .btn-text{padding:7px 4px;background:transparent;color:var(--blue)}.btn-text:hover{text-decoration:underline}
+    .btn-icon{width:37px;height:37px;padding:0;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted)}
+    .btn-icon:hover{background:#f4f7fd;color:var(--ink)}
+    .full{width:100%}
+    .field{margin-bottom:21px}.field:last-child{margin-bottom:0}
+    label,.field-label{display:block;font-size:13px;font-weight:730;margin-bottom:7px}
+    .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+    input[type=text],input[type=url],input[type=password],textarea{width:100%;min-height:45px;border-radius:10px;border:1px solid #d9e1ed;color:var(--ink);background:#fff;outline:none;padding:10px 13px}
+    input:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(49,89,217,.10)}
+    textarea{resize:vertical;min-height:76px}
+    input::placeholder,textarea::placeholder{color:#9aa6b7}
+    .muted{color:var(--muted)}
+    .small{font-size:13px}
+    .divider{border:0;border-top:1px solid var(--line);margin:24px 0}
+    .stack{display:flex;flex-direction:column;gap:4px}
+    .list-item{display:flex;gap:14px;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--line)}
+    .list-item:last-child{border-bottom:none}
+    .list-item h3{line-height:1.5}
+    .list-item p{margin:3px 0 0;color:var(--muted);font-size:13px}
+    .empty{padding:64px 24px;text-align:center}
+    .empty-icon{width:46px;height:46px;margin:0 auto 18px;border-radius:13px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue)}
+    .empty p{margin:7px auto 20px;max-width:380px;color:var(--muted)}
+    .notice{padding:13px 16px;background:#fff8e8;border:1px solid #f2dfac;border-radius:10px;color:#775a16;font-size:13px;line-height:1.5;margin-bottom:24px}
+    .notice-error{background:#fff3f4;border-color:#ffd8dd;color:#943743}
+    .notice-success{background:var(--green-soft);border-color:var(--green-border);color:#126b50}
+    .notice strong{font-weight:760}
+    .back{color:var(--muted);font-size:13px;font-weight:640;border:none;background:transparent;padding:0;margin-bottom:20px}
+    .back:hover{color:var(--blue)}
+    .share{display:flex;align-items:center;gap:10px;margin-top:16px}
+    .share input{background:#f8fafc;color:#576b87;min-width:0;flex:1;font-size:13px}
+    .summary{display:flex;align-items:center;gap:15px;justify-content:space-between;flex-wrap:wrap}
+    .summary-icon{width:42px;height:42px;background:var(--green-soft);color:var(--green);border-radius:11px;display:grid;place-items:center;font-size:22px;font-weight:800;flex-shrink:0}
+    .summary-copy{flex:1;min-width:220px}
+    .summary-title{font-size:18px;font-weight:800;letter-spacing:-.02em}
+    .summary-sub{color:var(--muted);font-size:13px;margin-top:3px}
+    .table-wrap{width:100%;overflow-x:auto}
+    table{width:100%;border-collapse:collapse;text-align:left}
+    th{padding:12px 19px;border-bottom:1px solid var(--line);background:#fafbfd;color:#718099;font-size:12px;font-weight:720;white-space:nowrap}
+    td{padding:15px 19px;border-bottom:1px solid var(--line);font-size:14px}
+    tr:last-child td{border-bottom:none}
+    .table-date{font-weight:700;white-space:nowrap}
+    .vote-count{font-weight:750;font-variant-numeric:tabular-nums}
+    .bar-bg{height:7px;width:100%;background:#edf0f6;border-radius:10px;overflow:hidden}
+    .bar{height:100%;background:#b8c7ed;border-radius:10px}
+    .bar.winner{background:var(--green)}
+    .best-tag{display:inline-block;margin-left:9px;padding:2px 7px;background:var(--green-soft);color:var(--green);border-radius:5px;font-size:10px;vertical-align:2px;white-space:nowrap}
+    .details{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+    .details summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:20px 24px;font-weight:720}
+    .details summary::-webkit-details-marker{display:none}
+    .details summary::after{content:'⌄';font-size:20px;color:var(--muted)}
+    .details[open] summary::after{content:'⌃'}
+    .matrix th:first-child,.matrix td:first-child{position:sticky;left:0;background:#fff;min-width:160px;z-index:1;border-right:1px solid var(--line)}
+    .matrix th:first-child{background:#fafbfd;z-index:2}
+    .matrix td:not(:first-child),.matrix th:not(:first-child){text-align:center;min-width:128px}
+    .yes{color:var(--green);font-weight:800}.no{color:#c6cdd9}
+    .tiny-note{text-align:center;color:#94a0b0;font-size:12px;margin-top:20px}
+    .loading{padding:72px 0;text-align:center;color:var(--muted)}
+    .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);max-width:min(90vw,520px);background:#202b3e;color:white;padding:12px 18px;border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.18);font-size:13px;font-weight:650;z-index:100}
+    .setting-box{max-width:700px}
+    .calendar-shell{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+    .calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfcfe;flex-wrap:wrap}
+    .calendar-range{font-size:14px;font-weight:760;letter-spacing:-.02em}
+    .calendar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .calendar-hint{padding:12px 16px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);background:#fff}
+    .calendar-wrap{overflow:auto;max-width:100%}
+    .calendar-grid{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;table-layout:fixed}
+    .calendar-grid th,.calendar-grid td{padding:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center}
+    .calendar-grid thead th{background:#fafbfd;color:#617189;font-size:12px;font-weight:760;position:sticky;top:0;z-index:3}
+    .calendar-grid thead th:first-child{z-index:4}
+    .calendar-grid tr:last-child td,.calendar-grid tr:last-child th{border-bottom:none}
+    .calendar-grid th:last-child,.calendar-grid td:last-child{border-right:none}
+    .hour-head{width:84px;min-width:84px;background:#fafbfd}
+    .hour-label{width:84px;min-width:84px;background:#fafbfd;color:#617189;font-size:12px;font-weight:760;position:sticky;left:0;z-index:2}
+    .day-head{min-width:96px}
+    .day-head .top{display:block;font-size:12px;font-weight:780;color:var(--ink);padding-top:10px}
+    .day-head .sub{display:block;font-size:11px;color:var(--muted);padding:2px 6px 10px}
+    .slot-btn{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border:none;background:#fff;color:#9aa8bb;font-size:12px;font-weight:720;user-select:none;-webkit-user-select:none;touch-action:none;transition:background .08s,color .08s,box-shadow .08s}
+    .slot-btn:hover{background:#f6f9ff;color:#5a6f8d}
+    .slot-btn.active-create{background:var(--blue-soft);color:var(--blue);box-shadow:inset 0 0 0 1px #c8d7ff}
+    .slot-btn.active-vote{background:var(--green-soft);color:var(--green);box-shadow:inset 0 0 0 1px #bfe7d7}
+    .slot-btn.unavailable{background:#f8fafc;color:#d5dce7;cursor:default}
+    .slot-btn .dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#f2f5fb}
+    .slot-btn.active-create .dot{background:#dce6ff}
+    .slot-btn.active-vote .dot{background:#d4f2e5}
+    .calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:16px}
+    .selection-count{font-size:13px;color:var(--muted)}
+    .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+    .stat-box{border:1px solid var(--line);border-radius:12px;padding:14px 15px;background:#fbfcfe}
+    .stat-box strong{display:block;font-size:18px;line-height:1.2;letter-spacing:-.02em;margin-top:3px}
+    .stat-box span{display:block;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    @media(max-width:700px){
+      .topbar{height:66px}.topbar-inner{padding:0 18px}.wrap{padding:30px 16px 70px}
+      .heading{flex-direction:column;gap:16px;margin-bottom:24px}.heading .btn{width:100%}
+      .card{padding:20px}.list-item{padding:18px;align-items:flex-start;flex-direction:column}.list-item .btn{width:100%}
+      .share{flex-wrap:wrap}.share input{flex-basis:100%}.share .btn{flex:1}
+      .top-note{display:none}.summary{align-items:flex-start}.calendar-toolbar{align-items:flex-start}.calendar-actions{width:100%}.calendar-actions .btn{flex:1}
+      .calendar-grid{min-width:650px}.calendar-footer{flex-direction:column;align-items:stretch}.calendar-footer .btn{width:100%}
+      th,td{padding:13px 12px}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="brand" id="brand-link" aria-label="DiaCerto, página inicial">
+        <span class="brand-mark" aria-hidden="true"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18M8 15l2.5 2.5L16 12"></path></svg></span>
+        <span>dia<span style="color:#3159d9">certo</span></span>
+      </a>
+      <div class="top-right" id="top-actions"></div>
+    </div>
+  </header>
+  <main id="app" class="wrap" aria-live="polite" data-route-query="<?= routeQuery ?>" data-public-url="<?= publicUrl ?>"></main>
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // Mesmo quando este HTML é aberto com file://, a API abaixo atende os pedidos.
+    // É a mesma URL fixa usada na primeira versão. Reimplante nela o Code.gs novo.
+    // Não há banco de dados de demonstração nem senha armazenada em código.
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxLHRNqIJICVEsTmu3fuDqHOixcx-etoNhFB7jQIePssRawP3HcC74_ogQ8qee5f38G/exec';
+    const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
+    const VISIBLE_DAYS = 7;
+
+    function storageGet(key){try{return localStorage.getItem(key);}catch(_){return null;}}
+    // Apaga sobras de versões antigas que simulavam votos em localStorage.
+    function clearOldDemoData(){
+      try {
+        localStorage.removeItem('diacerto_polls_v1');
+        localStorage.removeItem('diacerto_polls_v2');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('diacerto_my_response_')) localStorage.removeItem(key);
+        }
+      } catch (_) {}
+    }
+    clearOldDemoData();
+    const app = document.getElementById('app');
+    const topActions = document.getElementById('top-actions');
+    const embeddedQuery = app.dataset.routeQuery;
+    const embeddedPublicUrl = app.dataset.publicUrl;
+    const hasServerRoute = !!embeddedQuery && !embeddedQuery.includes('<?');
+    let virtualRouteQuery = null;
+    function currentRouteQuery(){
+      if (virtualRouteQuery !== null) return virtualRouteQuery;
+      // Fragmentos permitem navegar até pelo HTML file:// sem trocar a origem.
+      if (location.hash.startsWith('#?')) return location.hash.slice(2);
+      return hasServerRoute ? embeddedQuery : window.location.search;
+    }
+    const params = new URLSearchParams(currentRouteQuery());
+    const gas = typeof google !== 'undefined' && !!(google.script && google.script.run);
+    let route = routeFromUrl();
+    let toastTimer;
+    const AUTH_KEY = 'diacerto_admin_session_v1';
+    let adminToken = sessionStorage.getItem(AUTH_KEY) || '';
+    let adminAuthenticated = false;
+    let loginError = '';
+    const state = {
+      loading:true,
+      error:'',
+      polls:[],
+      poll:null,
+      responses:[],
+      appUrl: embeddedPublicUrl && !embeddedPublicUrl.includes('<?') ? embeddedPublicUrl : '',
+      draftTitle:'',
+      draftDescription:'',
+      draftSlots:new Set(),
+      draftWeekStart:getWeekStart(todayIso()),
+      person:'',
+      chosen:new Set(),
+      saved:false,
+      personalError:'',
+      participantWeekStart:null,
+      drag:{active:false, mode:'', value:false},
+    };
+
+    function routeFromUrl(){
+      const p = new URLSearchParams(currentRouteQuery());
+      const participantId = p.get('id');
+      if (participantId && p.get('admin') !== '1') return {page:'participant', id:participantId};
+      return {page:p.get('view') === 'create' ? 'create' : p.get('poll') ? 'results' : 'home', id:p.get('poll') || ''};
+    }
+    function managerUrl(page='home', id=''){
+      const p = new URLSearchParams({admin:'1'});
+      if (page === 'results' && id) p.set('poll', id);
+      if (page === 'create') p.set('view', page);
+      return `${location.pathname}?${p.toString()}`;
+    }
+    function participantUrl(id){
+      // Quem recebe o link abre a página publicada (não um caminho file:// local).
+      const base = state.appUrl || (gas ? location.origin + location.pathname : GAS_API_URL);
+      const u = new URL(base, location.href);
+      u.search = '';
+      u.searchParams.set('id', id);
+      return u.toString();
+    }
+    function esc(value){return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function plural(n,singular,pluralWord){return `${n} ${n===1?singular:pluralWord}`;}
+    function pad(n){return String(n).padStart(2,'0');}
+    function parseIsoDate(str){
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+      const d = new Date(`${str}T12:00:00Z`);
+      return Number.isNaN(d.getTime()) || d.toISOString().slice(0,10)!==str ? null : d;
+    }
+    function todayIso(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+    function addDays(dateIso, delta){
+      const d = parseIsoDate(dateIso);
+      d.setUTCDate(d.getUTCDate()+delta);
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+    }
+    function getWeekStart(dateIso){
+      const d = parseIsoDate(dateIso);
+      const day = d.getUTCDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setUTCDate(d.getUTCDate() + diff);
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+    }
+    function rangeDays(startIso,count){
+      return Array.from({length:count}, (_,i)=>addDays(startIso,i));
+    }
+    function formatPrettyDate(dateIso){
+      const d = parseIsoDate(dateIso);
+      if (!d) return String(dateIso);
+      const txt = new Intl.DateTimeFormat('pt-BR',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).format(d);
+      return txt.charAt(0).toUpperCase() + txt.slice(1);
+    }
+    function formatShortDate(dateIso){
+      const d = parseIsoDate(dateIso);
+      if (!d) return String(dateIso);
+      return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short',timeZone:'UTC'}).format(d);
+    }
+    function formatWeekdayShort(dateIso){
+      const d = parseIsoDate(dateIso);
+      if (!d) return String(dateIso);
+      const txt = new Intl.DateTimeFormat('pt-BR',{weekday:'short',timeZone:'UTC'}).format(d).replace('.', '');
+      return txt.charAt(0).toUpperCase() + txt.slice(1);
+    }
+    function slotLabel(dateIso, hour){return `${dateIso} ${hour}`;}
+    function splitSlot(label){
+      const m = String(label).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/);
+      return m ? {date:m[1], hour:m[2]} : {date:'', hour:''};
+    }
+    function formatPrettySlot(label){
+      const parts = splitSlot(label);
+      return parts.date ? `${formatPrettyDate(parts.date)} às ${parts.hour}` : String(label);
+    }
+    function formatRange(startIso, days){
+      const endIso = addDays(startIso, days - 1);
+      const start = parseIsoDate(startIso);
+      const end = parseIsoDate(endIso);
+      const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+      const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+      const startDay = pad(start.getUTCDate());
+      const endDay = pad(end.getUTCDate());
+      const startMonth = new Intl.DateTimeFormat('pt-BR',{month:'short',timeZone:'UTC'}).format(start).replace('.', '');
+      const endMonth = new Intl.DateTimeFormat('pt-BR',{month:'short',timeZone:'UTC'}).format(end).replace('.', '');
+      const yearText = sameYear ? start.getUTCFullYear() : `${start.getUTCFullYear()} / ${end.getUTCFullYear()}`;
+      return sameMonth ? `${startDay}–${endDay} ${startMonth} ${yearText}` : `${startDay} ${startMonth} – ${endDay} ${endMonth} ${yearText}`;
+    }
+    function pollSlots(poll){
+      return (poll?.slots || []).map(s => typeof s === 'string' ? s : s.label).filter(Boolean).sort();
+    }
+    function responseName(r){return String(r.participant_name || '').trim();}
+    function rpc(name,...args){
+      return new Promise((resolve,reject)=>{
+        try {google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e?.message || 'Falha no Google Apps Script')))[name](...args);}
+        catch(e){reject(e);}
+      });
+    }
+    async function apiRequest(action, payload={}, method='POST'){
+      let url = GAS_API_URL;
+      const options = {cache:'no-store'};
+      if(method === 'GET') {
+        const u = new URL(url);
+        u.searchParams.set('action',action);
+        for (const [key,value] of Object.entries(payload)) u.searchParams.set(key,String(value));
+        u.searchParams.set('_t',String(Date.now()));
+        url = u.toString();
+      } else {
+        // O Content-Type text/plain evita OPTIONS/preflight, como no código original.
+        options.method = 'POST';
+        options.headers = {'Content-Type':'text/plain;charset=utf-8'};
+        options.body = JSON.stringify({action,...payload});
+      }
+      let response;
+      try {response = await fetch(url,options);}
+      catch (_) {throw new Error('Não foi possível consultar o Apps Script. Confira a implantação /exec e as permissões de acesso (ou eventuais bloqueios CORS do navegador).');}
+      let json;
+      try {json = await response.json();}
+      catch (_) {throw new Error('O Apps Script não retornou JSON. Atualize o Code.gs e publique uma NOVA VERSÃO na implantação original.');}
+      if(!response.ok || json?.ok !== true){
+        throw new Error(json?.error || `Erro no Apps Script (${response.status}). Publique o Code.gs atualizado.`);
+      }
+      return json.data;
+    }
+    async function bootstrap(id=''){
+      if(route.page === 'participant') {
+        return gas ? rpc('getParticipantPoll',id) : apiRequest('public_poll',{id},'GET');
+      }
+      if(!adminAuthenticated) throw new Error('Acesso administrativo não autorizado.');
+      return gas ? rpc('getBootstrap',adminToken,id) : apiRequest('admin_bootstrap',{token:adminToken,poll_id:id});
+    }
+    async function createPoll(payload){
+      if(!adminAuthenticated) throw new Error('Entre com a senha da planilha.');
+      return gas ? rpc('createPoll',payload,adminToken) : apiRequest('create_poll',{token:adminToken,payload});
+    }
+    async function saveVote(payload){
+      return gas ? rpc('saveVote',payload) : apiRequest('save_vote',{payload});
+    }
+    async function loginRequest(password){
+      return gas ? rpc('adminLogin',password) : apiRequest('admin_login',{password});
+    }
+    async function sessionValidRequest(token){
+      return gas ? rpc('adminSessionValid',token) : apiRequest('admin_check',{token});
+    }
+    async function logoutRequest(token){
+      return gas ? rpc('adminLogout',token) : apiRequest('admin_logout',{token});
+    }
+    function showToast(msg){
+      const node = document.getElementById('toast-container');
+      node.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(()=>node.innerHTML='', 3600);
+    }
+    function renderTop(){
+      if (route.page === 'participant') {
+        topActions.innerHTML = '<span class="top-note">Sua disponibilidade</span>';
+        document.getElementById('brand-link').href = '#';
+      } else {
+        topActions.innerHTML = adminAuthenticated
+          ? '<span class="top-note">Área do gestor</span><button class="btn btn-outline" type="button" data-action="logout">Sair</button>'
+          : '<span class="top-note">Área restrita</span>';
+        document.getElementById('brand-link').href = managerUrl();
+      }
+    }
+    function render(){
+      renderTop();
+      app.classList.toggle('narrow', route.page === 'participant' || !adminAuthenticated);
+      if (route.page !== 'participant' && !adminAuthenticated) {
+        renderLogin();
+        return;
+      }
+      if (state.loading) {
+        app.innerHTML = '<div class="loading">Carregando reunião...</div>';
+        return;
+      }
+      if (state.error) {
+        app.innerHTML = `<section class="card setting-box"><h1>Não foi possível carregar</h1><p class="lead">${esc(state.error)}</p><button class="btn btn-primary" data-action="retry" style="margin-top:20px">Tentar novamente</button></section>`;
+        return;
+      }
+      if (route.page === 'participant') renderParticipant();
+      else if (route.page === 'create') renderCreate();
+      else if (route.page === 'results') renderResults();
+      else renderHome();
+    }
+    function renderLogin(){
+      app.innerHTML = `<div class="heading"><div class="heading-copy"><p class="eyebrow">Área restrita</p><h1>Acesso do gestor</h1><p class="lead">Informe a senha definida na planilha para criar reuniões e consultar os resultados.</p></div></div>
+        <form id="login-form" class="card setting-box">
+          ${loginError ? `<div class="notice notice-error" role="alert">${esc(loginError)}</div>` : ''}
+          <div class="field"><label for="admin-password">Senha administrativa</label><input type="password" id="admin-password" required autocomplete="current-password" placeholder="Digite sua senha" /></div>
+          <button class="btn btn-primary full" type="submit" id="login-submit">Entrar no painel →</button>
+          <p class="hint" style="margin-top:16px">A senha é configurada em <strong>DiaCerto_Config!B2</strong>. Não existe senha de demonstração.</p>
+        </form>`;
+    }
+    async function submitLogin(form){
+      const password = form.querySelector('#admin-password').value;
+      const button = form.querySelector('#login-submit');
+      button.disabled = true;
+      button.textContent = 'Verificando...';
+      try {
+        const data = await loginRequest(password);
+        if (!data || !data.token) throw new Error('O servidor não retornou uma sessão válida.');
+        adminToken = data.token;
+        sessionStorage.setItem(AUTH_KEY, adminToken);
+        adminAuthenticated = true;
+        loginError = '';
+        await load();
+      } catch (e) {
+        loginError = e?.message || 'Não foi possível entrar.';
+        adminAuthenticated = false;
+        adminToken = '';
+        sessionStorage.removeItem(AUTH_KEY);
+        render();
+      }
+    }
+    function logout(){
+      const oldToken = adminToken;
+      adminToken = '';
+      adminAuthenticated = false;
+      sessionStorage.removeItem(AUTH_KEY);
+      loginError = '';
+      state.poll = null;
+      state.responses = [];
+      state.polls = [];
+      navigate('home');
+      if (oldToken) logoutRequest(oldToken).catch(()=>{});
+    }
+    async function boot(){
+      if(route.page === 'participant') return load();
+      if(adminToken){
+        try {adminAuthenticated = Boolean(await sessionValidRequest(adminToken));}
+        catch(_) {adminAuthenticated = false;}
+        if(!adminAuthenticated){
+          sessionStorage.removeItem(AUTH_KEY);
+          adminToken = '';
+        }
+      }
+      if(adminAuthenticated) await load();
+      else {state.loading=false;render();}
+    }
+    function renderHome(){
+      const list = state.polls || [];
+      app.innerHTML = `
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Painel do gestor</p><h1>Encontre o melhor horário<br>para a sua equipe.</h1><p class="lead">Crie uma reunião, selecione os horários em uma grade semanal e compartilhe o link para que todos marquem quando podem participar.</p></div><button class="btn btn-primary" data-action="new">+ Nova reunião</button></div>
+        <div class="section-header"><h2>Minhas reuniões</h2><span class="small muted">${plural(list.length,'reunião','reuniões')}</span></div>
+        <div class="card tight">${list.length ? list.map(p => `<div class="list-item"><div class="stack"><h3>${esc(p.title)}</h3><p>${plural(p.slot_count != null ? p.slot_count : 0,'horário proposto','horários propostos')}${p.response_count != null ? ' · ' + plural(p.response_count,'resposta','respostas') : ''}</p></div><button type="button" class="btn btn-outline" data-action="results" data-id="${esc(p.id)}">Ver resultados →</button></div>`).join('') : `<div class="empty"><div class="empty-icon" aria-hidden="true">▦</div><h2>Nenhuma reunião por enquanto</h2><p>Comece selecionando os horários possíveis para o encontro.</p><button class="btn btn-primary" data-action="new">Criar minha primeira reunião</button></div>`}</div>`;
+    }
+    function renderCreate(){
+      const weekStart = state.draftWeekStart;
+      const weekDays = rangeDays(weekStart, VISIBLE_DAYS);
+      app.innerHTML = `<button class="back" data-action="home">← Minhas reuniões</button>
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Painel do gestor</p><h1>Criar reunião</h1><p class="lead">Dê um nome ao encontro e selecione na grade os horários que podem entrar na votação.</p></div></div>
+        <form id="create-form" class="card">
+          <div class="field"><label for="meeting-title">Nome da reunião *</label><input id="meeting-title" type="text" maxlength="120" required placeholder="Ex.: Reunião de planejamento" value="${esc(state.draftTitle)}"></div>
+          <div class="field"><label for="meeting-desc">Observações <span class="muted" style="font-weight:400">(opcional)</span></label><textarea id="meeting-desc" maxlength="350" placeholder="Ex.: Preferência por horários da manhã, reunião de 1 hora.">${esc(state.draftDescription)}</textarea></div>
+          <div class="field">
+            <label class="field-label">Horários propostos *</label>
+            ${renderCalendarGrid({
+              type:'create',
+              days:weekDays,
+              activeSet:state.draftSlots,
+              isSelectable:(slot)=>true,
+              headline:`Semana de ${formatRange(weekStart, VISIBLE_DAYS)}`,
+              help:'Clique ou arraste na grade para selecionar os horários. Cada bloco representa 1 hora.',
+              prevAction:'create-prev-week',
+              nextAction:'create-next-week',
+              clearAction:'create-clear-week',
+              clearLabel:'Limpar seleção',
+            })}
+          </div>
+          <div class="calendar-footer"><span class="selection-count">${plural(state.draftSlots.size,'horário selecionado','horários selecionados')}</span><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-outline" type="button" data-action="home">Cancelar</button><button class="btn btn-primary" type="submit" id="create-submit">Criar reunião e gerar link →</button></div></div>
+        </form>`;
+    }
+    function renderParticipant(){
+      const poll = state.poll;
+      if (!poll) {
+        app.innerHTML = '<section class="card"><h1>Reunião não encontrada</h1><p class="lead">Verifique se o link está correto.</p></section>';
+        return;
+      }
+      const slots = pollSlots(poll);
+      const dates = [...new Set(slots.map(s => splitSlot(s).date))].sort();
+      const weekStart = state.participantWeekStart || (dates[0] ? getWeekStart(dates[0]) : getWeekStart(todayIso()));
+      const visibleDays = rangeDays(weekStart, VISIBLE_DAYS);
+      const validVisibleDays = visibleDays.some(day => dates.includes(day));
+      const prevWeek = addDays(weekStart, -7);
+      const nextWeek = addDays(weekStart, 7);
+      const canPrev = dates.length ? prevWeek <= dates[dates.length - 1] && weekStart > getWeekStart(dates[0]) : false;
+      const canNext = dates.length ? nextWeek <= getWeekStart(dates[dates.length - 1]) || visibleDays[VISIBLE_DAYS-1] < dates[dates.length - 1] : false;
+      app.innerHTML = `
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Sua resposta</p><h1>${esc(poll.title)}</h1><p class="lead">${esc(poll.description || 'Informe seu nome e marque na grade os horários em que você pode participar.')}</p></div></div>
+        <form id="vote-form" class="card">
+          ${state.saved ? '<div class="notice notice-success"><strong>Disponibilidade salva.</strong> Você pode voltar e ajustar quando quiser.</div>' : ''}
+          <div class="field"><label for="person-name">Seu nome *</label><input id="person-name" name="person-name" type="text" maxlength="100" autocomplete="name" placeholder="Ex.: Ana Clara" value="${esc(state.person)}">${state.personalError ? `<p class="hint" style="color:#943743">${esc(state.personalError)}</p>` : '<p class="hint">Use o mesmo nome caso queira atualizar sua resposta depois.</p>'}</div>
+          <div class="field">
+            <div class="section-header" style="margin-bottom:10px"><h2>Selecione quando você pode</h2><button class="btn btn-text" type="button" data-action="vote-clear">Limpar minha seleção</button></div>
+            ${renderCalendarGrid({
+              type:'vote',
+              days:visibleDays,
+              activeSet:state.chosen,
+              isSelectable:(slot)=>slots.includes(slot),
+              headline:`Semana de ${formatRange(weekStart, VISIBLE_DAYS)}`,
+              help:'Clique ou arraste para marcar sua disponibilidade. Apenas os blocos claros fazem parte desta votação.',
+              prevAction:'vote-prev-week',
+              nextAction:'vote-next-week',
+              prevDisabled:!canPrev,
+              nextDisabled:!canNext,
+            })}
+            ${!validVisibleDays ? '<p class="hint">Nesta semana não há horários propostos. Use as setas para navegar.</p>' : ''}
+          </div>
+          <div class="calendar-footer"><span class="selection-count">${plural(state.chosen.size,'horário selecionado','horários selecionados')}</span><button class="btn btn-primary" type="submit" id="vote-submit">${state.saved ? 'Atualizar disponibilidade' : 'Salvar disponibilidade'} →</button></div>
+          <p class="hint">Cada marcação representa um período de 1 hora.</p>
+        </form>
+        <p class="tiny-note">Suas respostas serão enviadas ao organizador da reunião.</p>`;
+    }
+    function renderResults(){
+      const p = state.poll;
+      if (!p) {
+        app.innerHTML = `<button class="back" data-action="home">← Minhas reuniões</button><div class="card"><h2>Reunião não encontrada</h2><p class="lead">Verifique se o link está correto.</p></div>`;
+        return;
+      }
+      const slots = pollSlots(p);
+      const responses = state.responses || [];
+      const total = responses.length;
+      const results = slots.map((label, i) => ({label, i, count: responses.filter(r => (r.slots || []).includes(label)).length})).sort((a,b)=>b.count-a.count || a.label.localeCompare(b.label));
+      const top = results[0];
+      const max = top?.count || 0;
+      const bestText = max ? formatPrettySlot(top.label) : 'Aguardando respostas';
+      const sub = max ? `${max} de ${total} ${total===1?'participante':'participantes'} podem neste horário.` : 'Os melhores horários aparecerão conforme as respostas chegarem.';
+      const link = participantUrl(p.id);
+      app.innerHTML = `<button class="back" data-action="home">← Minhas reuniões</button>
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Resultados da reunião</p><h1>${esc(p.title)}</h1><p class="lead">${esc(p.description || 'Veja qual horário permite a presença de mais pessoas.')}</p></div><button class="btn btn-outline" data-action="refresh">↻ Atualizar</button></div>
+        <section class="card"><div class="section-header" style="margin-bottom:0"><h2>Link para os participantes</h2></div><div class="share"><input type="text" readonly id="share-url" aria-label="Link para responder" value="${esc(link)}"><button class="btn btn-primary" type="button" data-action="copy">Copiar link</button><button class="btn btn-outline" type="button" data-action="preview">Abrir ↗</button></div></section>
+        <section class="card"><div class="summary"><div class="summary-icon">✓</div><div class="summary-copy"><p class="eyebrow" style="margin:0 0 4px;color:var(--green)">Melhor opção até agora</p><div class="summary-title">${esc(bestText)}</div><div class="summary-sub">${esc(sub)}</div></div><div class="small muted" style="font-weight:650">${plural(total,'resposta','respostas')}</div></div><div class="stats-row"><div class="stat-box"><span>Horários propostos</span><strong>${slots.length}</strong></div><div class="stat-box"><span>Pessoas que responderam</span><strong>${total}</strong></div><div class="stat-box"><span>Maior adesão</span><strong>${max}</strong></div></div></section>
+        <div class="section-header" style="margin-top:26px"><h2>Disponibilidade por horário</h2><span class="small muted">Base: ${plural(total,'pessoa que respondeu','pessoas que responderam')}</span></div>
+        <div class="card tight"><div class="table-wrap"><table><thead><tr><th>Horário</th><th>Pessoas disponíveis</th><th style="width:26%">Proporção</th></tr></thead><tbody>${results.map(r => {
+          const pct = total ? Math.round(r.count / total * 100) : 0;
+          return `<tr><td class="table-date">${esc(formatPrettySlot(r.label))}${max > 0 && r.count === max ? '<span class="best-tag">Mais votado</span>' : ''}</td><td class="vote-count">${r.count} de ${total} <span class="muted" style="font-weight:500">(${pct}%)</span></td><td><div class="bar-bg" role="img" aria-label="${pct}% dos participantes"><div class="bar ${max > 0 && r.count === max ? 'winner' : ''}" style="width:${pct}%"></div></div></td></tr>`;
+        }).join('') || '<tr><td colspan="3">Nenhum horário cadastrado.</td></tr>'}</tbody></table></div></div>
+        <details class="details" style="margin-top:18px"><summary>Ver respostas individuais</summary><div class="table-wrap"><table class="matrix"><thead><tr><th>Nome</th>${slots.map(s => `<th>${esc(formatShortDate(splitSlot(s).date))}<br><span class="muted" style="font-size:11px">${esc(splitSlot(s).hour)}</span></th>`).join('')}</tr></thead><tbody>${responses.map(r => `<tr><td>${esc(responseName(r))}</td>${slots.map(s => `<td class="${(r.slots || []).includes(s) ? 'yes' : 'no'}">${(r.slots || []).includes(s) ? '✓' : '—'}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${slots.length + 1}">Ainda não há respostas.</td></tr>`}</tbody></table></div></details>`;
+    }
+    function renderCalendarGrid({type, days, activeSet, isSelectable, headline, help, prevAction, nextAction, clearAction, clearLabel, prevDisabled=false, nextDisabled=false}){
+      return `<div class="calendar-shell">
+        <div class="calendar-toolbar"><div class="calendar-range">${esc(headline)}</div><div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="${esc(prevAction)}" ${prevDisabled ? 'disabled' : ''}>← Semana anterior</button><button type="button" class="btn btn-outline" data-action="${esc(nextAction)}" ${nextDisabled ? 'disabled' : ''}>Próxima semana →</button>${clearAction ? `<button type="button" class="btn btn-soft" data-action="${esc(clearAction)}">${esc(clearLabel || 'Limpar')}</button>` : ''}</div></div>
+        <div class="calendar-hint">${esc(help)}</div>
+        <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day => `<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(hour => `<tr><th class="hour-label">${esc(hour)}</th>${days.map(day => {
+          const slot = slotLabel(day, hour);
+          const selectable = isSelectable(slot);
+          const active = activeSet.has(slot);
+          return `<td><button type="button" class="slot-btn ${selectable ? (active ? (type === 'create' ? 'active-create' : 'active-vote') : '') : 'unavailable'}" ${selectable ? `data-slot="${esc(slot)}" data-grid="${esc(type)}" aria-pressed="${active ? 'true' : 'false'}"` : 'disabled aria-disabled="true"'}>${selectable ? `<span class="dot">${active ? '✓' : '+'}</span>` : '—'}</button></td>`;
+        }).join('')}</tr>`).join('')}</tbody></table></div>
+      </div>`;
+    }
+    function restoreMyAnswer(id){
+      // O participante recebe a grade do GAS, sem consultar dados locais.
+      state.person = '';
+      state.chosen = new Set();
+      state.saved = false;
+      state.personalError = '';
+      const slots = pollSlots(state.poll);
+      const dates = [...new Set(slots.map(s => splitSlot(s).date))].sort();
+      state.participantWeekStart = dates[0] ? getWeekStart(dates[0]) : getWeekStart(todayIso());
+    }
+    function saveDraft(){
+      const t = document.getElementById('meeting-title');
+      const d = document.getElementById('meeting-desc');
+      if (t) state.draftTitle = t.value;
+      if (d) state.draftDescription = d.value;
+    }
+    async function load(){
+      if (route.page !== 'participant' && !adminAuthenticated) { state.loading=false; render(); return; }
+      state.loading = true;
+      state.error = '';
+      render();
+      try{
+        const data = await bootstrap(route.id || '');
+        state.polls = data.polls_summary || [];
+        state.poll = data.active_poll || null;
+        state.responses = data.active_responses || [];
+        state.appUrl = data.app_url || (!gas ? GAS_API_URL : '');
+        if (route.page === 'participant') restoreMyAnswer(route.id);
+        state.loading = false;
+        render();
+      }catch(e){
+        state.loading = false;
+        const msg = e?.message || 'Verifique sua conexão.';
+        if (route.page !== 'participant' && /Sessão expirada|não autorizado/i.test(msg)) {
+          adminAuthenticated = false;
+          adminToken = '';
+          sessionStorage.removeItem(AUTH_KEY);
+          loginError = 'Sua sessão expirou. Entre novamente.';
+        } else state.error = msg;
+        render();
+      }
+    }
+    function navigate(page,id=''){
+      if (route.page === 'create') saveDraft();
+      const url = managerUrl(page,id);
+      virtualRouteQuery = url.slice(url.indexOf('?') + 1);
+      try { history.pushState({q:virtualRouteQuery}, '', `#?${virtualRouteQuery}`); }
+      catch (_) { location.hash = '?' + virtualRouteQuery; }
+      route = routeFromUrl();
+      if (page === 'results') load();
+      else { state.error=''; state.loading=false; render(); }
+    }
+    function leaveForVote(){window.open(participantUrl(state.poll.id),'_blank','noopener,noreferrer');}
+    async function copyShare(){
+      const link = participantUrl(state.poll.id);
+      try{
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link);
+        else throw new Error('Clipboard indisponível');
+        showToast('Link copiado!');
+      }catch(_){
+        const input = document.getElementById('share-url');
+        input?.focus();
+        input?.select();
+        showToast('Selecione e copie o link exibido.');
+      }
+    }
+    function setInSet(set, slot, value){ if (value) set.add(slot); else set.delete(slot); }
+    function applySlotSelection(context, slot, value){
+      if (context === 'create') setInSet(state.draftSlots, slot, value);
+      else if (context === 'vote') { setInSet(state.chosen, slot, value); state.saved = false; }
+      const active = context === 'create' ? state.draftSlots.has(slot) : state.chosen.has(slot);
+      app.querySelectorAll('[data-slot][data-grid]').forEach(button => {
+        if (button.dataset.grid !== context || button.dataset.slot !== slot) return;
+        button.classList.toggle('active-create', context === 'create' && active);
+        button.classList.toggle('active-vote', context === 'vote' && active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.innerHTML = `<span class="dot">${active ? '✓' : '+'}</span>`;
+      });
+      const count = app.querySelector('.selection-count');
+      const selected = context === 'create' ? state.draftSlots.size : state.chosen.size;
+      if (count) count.textContent = plural(selected, 'horário selecionado', 'horários selecionados');
+      if (context === 'vote') {
+        const submit = document.getElementById('vote-submit');
+        if (submit) submit.textContent = 'Salvar disponibilidade →';
+        app.querySelector('.notice-success')?.remove();
+      }
+    }
+    function startDrag(context, slot){
+      const targetSet = context === 'create' ? state.draftSlots : state.chosen;
+      const value = !targetSet.has(slot);
+      state.drag = {active:true, mode:context, value, lastSlot:slot};
+      applySlotSelection(context, slot, value);
+    }
+    function enterDrag(context, slot){
+      if (!state.drag.active || state.drag.mode !== context || state.drag.lastSlot === slot) return;
+      state.drag.lastSlot = slot;
+      applySlotSelection(context, slot, state.drag.value);
+    }
+    function stopDrag(){state.drag.active = false;}
+    async function submitCreate(form){
+      state.draftTitle = form.querySelector('#meeting-title').value.trim();
+      state.draftDescription = form.querySelector('#meeting-desc').value.trim();
+      if (!state.draftTitle) { form.querySelector('#meeting-title').focus(); showToast('Informe o nome da reunião.'); return; }
+      if (!state.draftSlots.size) { showToast('Selecione pelo menos um horário.'); return; }
+      const btn = document.getElementById('create-submit');
+      btn.disabled = true; btn.textContent = 'Criando...';
+      try{
+        const orderedSlots = [...state.draftSlots].sort();
+        const payload = {title:state.draftTitle, description:state.draftDescription, slots:orderedSlots.map((label,i)=>({id:'s'+(i+1), label})), locations:[]};
+        const data = await createPoll(payload);
+        const id = data.created_poll_id || data?.bootstrap?.active_poll?.id;
+        if (!id) throw new Error('A API não retornou o código da reunião.');
+        state.draftTitle = '';
+        state.draftDescription = '';
+        state.draftSlots = new Set();
+        state.draftWeekStart = getWeekStart(todayIso());
+        navigate('results', id);
+        showToast('Reunião criada! O link está pronto para compartilhar.');
+      }catch(e){
+        showToast('Não foi possível criar: ' + (e.message || e));
+        btn.disabled = false; btn.textContent = 'Criar reunião e gerar link →';
+      }
+    }
+    async function submitVote(form){
+      const name = form.querySelector('#person-name').value.trim().replace(/\s+/g,' ');
+      if (!name) {
+        state.personalError = 'Digite seu nome para continuar.';
+        renderParticipant();
+        document.getElementById('person-name')?.focus();
+        return;
+      }
+      state.person = name;
+      state.personalError = '';
+      const btn = document.getElementById('vote-submit');
+      btn.disabled = true; btn.textContent = 'Salvando...';
+      try{
+        const payload = {poll_id:state.poll.id, participant_name:name, slots:[...state.chosen].sort(), locations:[]};
+        await saveVote(payload);
+        state.saved = true;
+        renderParticipant();
+        showToast('Sua disponibilidade foi salva.');
+      }catch(e){
+        showToast('Não foi possível salvar: ' + (e.message || e));
+        btn.disabled = false; btn.textContent = 'Salvar disponibilidade →';
+      }
+    }
+
+    document.getElementById('brand-link').addEventListener('click', e => {
+      if (route.page === 'participant') { e.preventDefault(); return; }
+      e.preventDefault();
+      navigate('home');
+    });
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-action]');
+      if (!b) return;
+      const action = b.dataset.action;
+      if (action === 'new') { navigate('create'); return; }
+      if (action === 'home') { navigate('home'); return; }
+      if (action === 'results') { navigate('results', b.dataset.id); return; }
+      if (action === 'logout') { logout(); return; }
+      if (action === 'retry') { load(); return; }
+      if (action === 'refresh') { load(); return; }
+      if (action === 'copy') { copyShare(); return; }
+      if (action === 'preview') { leaveForVote(); return; }
+      if (action === 'create-prev-week') { saveDraft(); state.draftWeekStart = addDays(state.draftWeekStart, -7); render(); return; }
+      if (action === 'create-next-week') { saveDraft(); state.draftWeekStart = addDays(state.draftWeekStart, 7); render(); return; }
+      if (action === 'create-clear-week') {
+        const weekDays = new Set(rangeDays(state.draftWeekStart, VISIBLE_DAYS));
+        state.draftSlots = new Set([...state.draftSlots].filter(slot => !weekDays.has(splitSlot(slot).date)));
+        render();
+        return;
+      }
+      if (action === 'vote-prev-week') { if (state.participantWeekStart) { state.participantWeekStart = addDays(state.participantWeekStart, -7); renderParticipant(); } return; }
+      if (action === 'vote-next-week') { if (state.participantWeekStart) { state.participantWeekStart = addDays(state.participantWeekStart, 7); renderParticipant(); } return; }
+      if (action === 'vote-clear') { state.chosen = new Set(); state.saved = false; renderParticipant(); return; }
+    });
+    app.addEventListener('pointerdown', e => {
+      const btn = e.target.closest('[data-slot][data-grid]');
+      if (!btn || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      e.preventDefault();
+      startDrag(btn.dataset.grid, btn.dataset.slot);
+      try { btn.closest('.calendar-wrap').setPointerCapture(e.pointerId); } catch(_){ }
+    });
+    app.addEventListener('pointermove', e => {
+      if (!state.drag.active) return;
+      if (e.cancelable) e.preventDefault();
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const btn = el?.closest?.('[data-slot][data-grid]');
+      if (btn) enterDrag(btn.dataset.grid, btn.dataset.slot);
+    });
+    app.addEventListener('pointerup', stopDrag);
+    app.addEventListener('pointercancel', stopDrag);
+    window.addEventListener('blur', stopDrag);
+    app.addEventListener('input', e => {
+      if (e.target.id === 'person-name') state.person = e.target.value;
+    });
+    app.addEventListener('submit', e => {
+      e.preventDefault();
+      if (e.target.id === 'create-form') submitCreate(e.target);
+      else if (e.target.id === 'vote-form') submitVote(e.target);
+      else if (e.target.id === 'login-form') submitLogin(e.target);
+
+    });
+    window.addEventListener('popstate', e => {
+      virtualRouteQuery = e.state?.q ?? null;
+      route = routeFromUrl();
+      boot();
+    });
+
+    boot();
+  })();
+  </script>
+</body>
+</html>
