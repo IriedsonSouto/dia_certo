@@ -242,10 +242,17 @@
       return `${location.pathname}?${p.toString()}`;
     }
     function participantUrl(id){
-      // Quem recebe o link abre a página publicada (não um caminho file:// local).
-      const base = state.appUrl || (gas ? location.origin + location.pathname : GAS_API_URL);
-      const u = new URL(base, location.href);
+      // O compartilhamento aponta SEMPRE para o frontend onde esta página está
+      // hospedada (GitHub Pages ou domínio próprio), NUNCA para a API do GAS.
+      // Preserva o caminho /repositorio/ (ou /index.html) do GitHub Pages.
+      const u = new URL(window.location.href);
+      if (!['https:', 'http:'].includes(u.protocol) ||
+          /(^|\.)script\.google\.com$/i.test(u.hostname) ||
+          /(^|\.)googleusercontent\.com$/i.test(u.hostname)) {
+        return ''; // Sem endereço público conhecido: não gerar link incorreto.
+      }
       u.search = '';
+      u.hash = '';
       u.searchParams.set('id', id);
       return u.toString();
     }
@@ -557,7 +564,7 @@
       const link = participantUrl(p.id);
       app.innerHTML = `<button class="back" data-action="home">← Minhas reuniões</button>
         <div class="heading"><div class="heading-copy"><p class="eyebrow">Resultados da reunião</p><h1>${esc(p.title)}</h1><p class="lead">${esc(p.description || 'Veja qual horário permite a presença de mais pessoas.')}</p></div><button class="btn btn-outline" data-action="refresh">↻ Atualizar</button></div>
-        <section class="card"><div class="section-header" style="margin-bottom:0"><h2>Link para os participantes</h2></div><div class="share"><input type="text" readonly id="share-url" aria-label="Link para responder" value="${esc(link)}"><button class="btn btn-primary" type="button" data-action="copy">Copiar link</button><button class="btn btn-outline" type="button" data-action="preview">Abrir ↗</button></div></section>
+        <section class="card"><div class="section-header" style="margin-bottom:0"><h2>Link para os participantes</h2></div>${link ? `<div class="share"><input type="text" readonly id="share-url" aria-label="Link para responder" value="${esc(link)}"><button class="btn btn-primary" type="button" data-action="copy">Copiar link</button><button class="btn btn-outline" type="button" data-action="preview">Abrir ↗</button></div><p class="hint">O link abre esta página no GitHub Pages. O Google Apps Script continua responsável apenas pelos dados.</p>` : '<div class="notice">Abra o DiaCerto pelo seu endereço público do GitHub Pages para gerar um link compartilhável. Links locais (file://) ou do Apps Script não serão enviados aos participantes.</div>'}</section>
         <section class="card"><div class="summary"><div class="summary-icon">✓</div><div class="summary-copy"><p class="eyebrow" style="margin:0 0 4px;color:var(--green)">Melhor opção até agora</p><div class="summary-title">${esc(bestText)}</div><div class="summary-sub">${esc(sub)}</div></div><div class="small muted" style="font-weight:650">${plural(total,'resposta','respostas')}</div></div><div class="stats-row"><div class="stat-box"><span>Horários propostos</span><strong>${slots.length}</strong></div><div class="stat-box"><span>Pessoas que responderam</span><strong>${total}</strong></div><div class="stat-box"><span>Maior adesão</span><strong>${max}</strong></div></div></section>
         <div class="section-header" style="margin-top:26px"><h2>Disponibilidade por horário</h2><span class="small muted">Base: ${plural(total,'pessoa que respondeu','pessoas que responderam')}</span></div>
         <div class="card tight"><div class="table-wrap"><table><thead><tr><th>Horário</th><th>Pessoas disponíveis</th><th style="width:26%">Proporção</th></tr></thead><tbody>${results.map(r => {
@@ -604,7 +611,9 @@
         state.polls = data.polls_summary || [];
         state.poll = data.active_poll || null;
         state.responses = data.active_responses || [];
-        state.appUrl = data.app_url || (!gas ? GAS_API_URL : '');
+        // A resposta do GAS pode incluir seu próprio /exec como app_url.
+        // Não usá-lo como URL pública: o frontend está no GitHub Pages.
+        state.appUrl = '';
         if (route.page === 'participant') restoreMyAnswer(route.id);
         state.loading = false;
         render();
@@ -630,9 +639,14 @@
       if (page === 'results') load();
       else { state.error=''; state.loading=false; render(); }
     }
-    function leaveForVote(){window.open(participantUrl(state.poll.id),'_blank','noopener,noreferrer');}
+    function leaveForVote(){
+      const link = participantUrl(state.poll.id);
+      if (!link) { showToast('Abra o DiaCerto pelo GitHub Pages para gerar um link público.'); return; }
+      window.open(link, '_blank', 'noopener,noreferrer');
+    }
     async function copyShare(){
       const link = participantUrl(state.poll.id);
+      if (!link) { showToast('Abra o DiaCerto pelo GitHub Pages para gerar um link público.'); return; }
       try{
         if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link);
         else throw new Error('Clipboard indisponível');
