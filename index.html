@@ -136,7 +136,6 @@
     .slot-btn .dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#f2f5fb}
     .slot-btn.active-create .dot{background:#dce6ff}
     .slot-btn.active-vote .dot{background:#d4f2e5}
-    /* Navegação clara entre as semanas que de fato possuem horários propostos. */
     .week-overview{background:#f8faff;border:1px solid #dfe7f7;border-radius:13px;padding:16px;margin:0 0 18px}
     .week-overview-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
     .week-overview-title{font-size:13px;font-weight:790;color:var(--ink)}
@@ -180,7 +179,21 @@
     .confirm-panel p{color:var(--muted);line-height:1.6;font-size:14px;margin:0 0 22px}
     .confirm-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
     @media(max-width:480px){.confirm-panel{padding:23px}.confirm-actions{flex-direction:column-reverse}.confirm-actions .btn{width:100%}}
-    @media(max-width:700px){.week-option{flex:0 0 155px}.week-overview{padding:13px}.week-list{margin-right:-6px}}
+    .calendar-mobile-nav{display:none}
+    .week-scroll-hint{display:none}
+    @media(max-width:700px){
+      .week-option{flex:0 0 155px}.week-overview{padding:13px}.week-list{margin-right:-6px}
+      .week-scroll-hint{display:block;color:#687993;font-size:11px;margin-top:7px}
+      .calendar-mobile-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);background:#f8faff}
+      .calendar-mobile-nav span{font-size:12px;color:#536784}
+      .calendar-mobile-buttons{display:flex;gap:7px;flex-shrink:0}
+      .calendar-mobile-buttons button{min-width:42px;height:42px;border:1px solid #cbd8f1;border-radius:9px;background:#fff;color:var(--blue);font-size:20px;font-weight:750;line-height:1}
+      .calendar-grid thead th:first-child{left:0;background:#fafbfd}
+    }
+    @media(max-width:480px){
+      .vote-heading{align-items:flex-start;flex-direction:column;gap:2px}
+      .vote-heading .btn-text{padding:5px 0}
+    }
     @media(max-width:700px){
       .topbar{height:66px}.topbar-inner{padding:0 18px}.wrap{padding:30px 16px 70px}
       .heading{flex-direction:column;gap:16px;margin-bottom:24px}.heading .btn{width:100%}
@@ -202,7 +215,7 @@
       <div class="top-right" id="top-actions"></div>
     </div>
   </header>
-  <main id="app" class="wrap" aria-live="polite" data-route-query="<?= routeQuery ?>" data-public-url="<?= publicUrl ?>"></main>
+  <main id="app" class="wrap" aria-live="polite"></main>
   <div id="toast-container" aria-live="polite"></div>
   <div class="confirm-backdrop" id="replace-dialog" hidden>
     <div class="confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="replace-title" aria-describedby="replace-description">
@@ -231,37 +244,18 @@
   (() => {
     'use strict';
 
-    // Mesmo quando este HTML é aberto com file://, a API abaixo atende os pedidos.
-    // É a mesma URL fixa usada na primeira versão. Reimplante nela o Code.gs novo.
-    // Não há banco de dados de demonstração nem senha armazenada em código.
+    // Endpoint público de API. A autorização das funções administrativas é feita no GAS.
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxLHRNqIJICVEsTmu3fuDqHOixcx-etoNhFB7jQIePssRawP3HcC74_ogQ8qee5f38G/exec';
     const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
     const VISIBLE_DAYS = 7;
 
-    function storageGet(key){try{return localStorage.getItem(key);}catch(_){return null;}}
-    // Apaga sobras de versões antigas que simulavam votos em localStorage.
-    function clearOldDemoData(){
-      try {
-        localStorage.removeItem('diacerto_polls_v1');
-        localStorage.removeItem('diacerto_polls_v2');
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('diacerto_my_response_')) localStorage.removeItem(key);
-        }
-      } catch (_) {}
-    }
-    clearOldDemoData();
     const app = document.getElementById('app');
     const topActions = document.getElementById('top-actions');
-    const embeddedQuery = app.dataset.routeQuery;
-    const embeddedPublicUrl = app.dataset.publicUrl;
-    const hasServerRoute = !!embeddedQuery && !embeddedQuery.includes('<?');
     let virtualRouteQuery = null;
     function currentRouteQuery(){
       if (virtualRouteQuery !== null) return virtualRouteQuery;
-      // Fragmentos permitem navegar até pelo HTML file:// sem trocar a origem.
       if (location.hash.startsWith('#?')) return location.hash.slice(2);
-      return hasServerRoute ? embeddedQuery : window.location.search;
+      return window.location.search;
     }
     const params = new URLSearchParams(currentRouteQuery());
     const gas = typeof google !== 'undefined' && !!(google.script && google.script.run);
@@ -277,7 +271,6 @@
       polls:[],
       poll:null,
       responses:[],
-      appUrl: embeddedPublicUrl && !embeddedPublicUrl.includes('<?') ? embeddedPublicUrl : '',
       draftTitle:'',
       draftDescription:'',
       draftSlots:new Set(),
@@ -315,14 +308,11 @@
       return `${location.pathname}?${p.toString()}`;
     }
     function participantUrl(id){
-      // O compartilhamento aponta SEMPRE para o frontend onde esta página está
-      // hospedada (GitHub Pages ou domínio próprio), NUNCA para a API do GAS.
-      // Preserva o caminho /repositorio/ (ou /index.html) do GitHub Pages.
       const u = new URL(window.location.href);
       if (!['https:', 'http:'].includes(u.protocol) ||
           /(^|\.)script\.google\.com$/i.test(u.hostname) ||
           /(^|\.)googleusercontent\.com$/i.test(u.hostname)) {
-        return ''; // Sem endereço público conhecido: não gerar link incorreto.
+        return '';
       }
       u.search = '';
       u.hash = '';
@@ -400,7 +390,6 @@
     }
     function responseName(r){return String(r.participant_name || '').trim();}
     function proposedVoteWeeks(slots){
-      // Semanas sem blocos não são exibidas na navegação do participante.
       const map=new Map();
       slots.forEach(slot=>{
         const date=splitSlot(slot).date;
@@ -438,6 +427,7 @@
           </button>`;
         }).join('')}
         </div>
+        <p class="week-scroll-hint">Deslize para o lado para ver as outras semanas.</p>
         <p class="week-overview-note">${remaining ? `<strong>${plural(remaining,'semana ainda não conferida','semanas ainda não conferidas')}.</strong> Há ${plural(otherSlots,'horário proposto','horários propostos')} fora da semana exibida.` : '✓ Você já conferiu todas as semanas. Pode salvar mesmo sem marcar horários em alguma delas.'}</p>
       </div>`;
     }
@@ -457,19 +447,22 @@
         u.searchParams.set('_t',String(Date.now()));
         url = u.toString();
       } else {
-        // O Content-Type text/plain evita OPTIONS/preflight, como no código original.
+        // Requisição simples compatível com o endpoint publicado do Apps Script.
         options.method = 'POST';
         options.headers = {'Content-Type':'text/plain;charset=utf-8'};
         options.body = JSON.stringify({action,...payload});
       }
       let response;
       try {response = await fetch(url,options);}
-      catch (_) {throw new Error('Não foi possível consultar o Apps Script. Confira a implantação /exec e as permissões de acesso (ou eventuais bloqueios CORS do navegador).');}
+      catch (_) {throw new Error('Não foi possível conectar ao serviço de reuniões. Tente novamente ou avise o organizador.');}
       let json;
       try {json = await response.json();}
-      catch (_) {throw new Error('O Apps Script não retornou JSON. Atualize o Code.gs e publique uma NOVA VERSÃO na implantação original.');}
+      catch (_) {throw new Error('O serviço de reuniões retornou uma resposta inesperada. Avise o organizador.');}
       if(!response.ok || json?.ok !== true){
-        throw new Error(json?.error || `Erro no Apps Script (${response.status}). Publique o Code.gs atualizado.`);
+        const message=String(json?.error || 'O serviço não conseguiu processar a solicitação.');
+        if (/a[cç][aã]o desconhecida/i.test(message)) throw new Error('A versão do serviço está desatualizada. Solicite ao gestor a atualização do sistema.');
+        if (/Exception:|ReferenceError:|TypeError:|stack trace/i.test(message)) throw new Error('Não foi possível concluir a operação. Tente novamente ou avise o organizador.');
+        throw new Error(message);
       }
       return json.data;
     }
@@ -538,12 +531,12 @@
       else renderHome();
     }
     function renderLogin(){
-      app.innerHTML = `<div class="heading"><div class="heading-copy"><p class="eyebrow">Área restrita</p><h1>Acesso do gestor</h1><p class="lead">Informe a senha definida na planilha para criar reuniões e consultar os resultados.</p></div></div>
+      app.innerHTML = `<div class="heading"><div class="heading-copy"><p class="eyebrow">Área restrita</p><h1>Acesso do gestor</h1><p class="lead">Informe sua senha para criar reuniões e consultar os resultados.</p></div></div>
         <form id="login-form" class="card setting-box">
           ${loginError ? `<div class="notice notice-error" role="alert">${esc(loginError)}</div>` : ''}
           <div class="field"><label for="admin-password">Senha administrativa</label><input type="password" id="admin-password" required autocomplete="current-password" placeholder="Digite sua senha" /></div>
           <button class="btn btn-primary full" type="submit" id="login-submit">Entrar no painel →</button>
-          <p class="hint" style="margin-top:16px">A senha é configurada em <strong>DiaCerto_Config!B2</strong>. Não existe senha de demonstração.</p>
+          <p class="hint" style="margin-top:16px">Acesso exclusivo para gestores autorizados.</p>
         </form>`;
     }
     async function submitLogin(form){
@@ -643,9 +636,9 @@
         <div class="heading"><div class="heading-copy"><p class="eyebrow">Sua resposta</p><h1>${esc(poll.title)}</h1><p class="lead">${esc(poll.description || 'Informe seu nome e marque na grade os horários em que você pode participar.')}</p></div></div>
         <form id="vote-form" class="card">
           ${state.saved ? '<div class="notice notice-success"><strong>Disponibilidade salva.</strong> Você pode voltar e ajustar quando quiser.</div>' : ''}
-          <div class="field"><label for="person-name">Seu nome *</label><input id="person-name" name="person-name" type="text" maxlength="100" autocomplete="name" placeholder="Ex.: Ana Clara" value="${esc(state.person)}">${state.personalError ? `<p class="hint" style="color:#943743">${esc(state.personalError)}</p>` : '<p class="hint">Use o mesmo nome caso queira atualizar sua resposta depois.</p>'}</div>
+          <div class="field"><label for="person-name">Seu nome *</label><input id="person-name" name="person-name" type="text" maxlength="100" autocomplete="name" placeholder="Digite seu nome" value="${esc(state.person)}">${state.personalError ? `<p class="hint" style="color:#943743">${esc(state.personalError)}</p>` : '<p class="hint">Use o mesmo nome caso queira atualizar sua resposta depois.</p>'}</div>
           <div class="field">
-            <div class="section-header" style="margin-bottom:10px"><h2>Selecione quando você pode</h2><button class="btn btn-text" type="button" data-action="vote-clear">Limpar minha seleção</button></div>
+            <div class="section-header vote-heading" style="margin-bottom:10px"><h2>Selecione quando você pode</h2><button class="btn btn-text" type="button" data-action="vote-clear">Limpar minha seleção</button></div>
             ${renderVoteWeekOverview(weeks,weekStart)}
             ${renderCalendarGrid({
               type:'vote',
@@ -685,6 +678,7 @@
         <div class="calendar-toolbar"><div class="calendar-range">Semana de ${esc(formatRange(weekStart,VISIBLE_DAYS))}</div>
           <div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="heat-prev-week" ${weekStart<=resultWeekBounds(slots).first?'disabled':''}>← Anterior</button><button type="button" class="btn btn-outline" data-action="heat-next-week" ${weekStart>=resultWeekBounds(slots).last?'disabled':''}>Próxima →</button></div></div>
         <div class="calendar-hint">Cada bloco mostra quantas pessoas podem participar. Quanto mais escuro, maior a adesão.</div>
+        ${mobileCalendarControls()}
         <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>
         ${HOURS.map(hour=>`<tr><th class="hour-label">${esc(hour)}</th>${days.map(day=>{
           const slot=slotLabel(day,hour);
@@ -739,10 +733,20 @@
         </section>
         <details class="details results-section"><summary>Ver classificação completa dos horários</summary><div class="table-wrap"><table><thead><tr><th>Dia e hora</th><th>Pessoas disponíveis</th><th>Proporção</th></tr></thead><tbody>${results.map(r=>{const pct=total?Math.round(r.count/total*100):0;return `<tr><td class="table-date">${esc(formatPrettySlot(r.label))}${max>0&&r.count===max?'<span class="best-tag">Mais votado</span>':''}</td><td class="vote-count">${r.count} de ${total}</td><td>${pct}%</td></tr>`;}).join('')}</tbody></table></div></details>`;
     }
+    function mobileCalendarControls(){
+      return `<div class="calendar-mobile-nav" aria-label="Navegação pelos dias do calendário">
+        <span>Veja outros dias <span aria-hidden="true">→</span></span>
+        <div class="calendar-mobile-buttons">
+          <button type="button" data-action="calendar-scroll" data-direction="-1" aria-label="Mostrar dias anteriores">‹</button>
+          <button type="button" data-action="calendar-scroll" data-direction="1" aria-label="Mostrar próximos dias">›</button>
+        </div>
+      </div>`;
+    }
     function renderCalendarGrid({type, days, activeSet, isSelectable, headline, help, prevAction, nextAction, clearAction, clearLabel, prevDisabled=false, nextDisabled=false}){
       return `<div class="calendar-shell">
-        <div class="calendar-toolbar"><div class="calendar-range">${esc(headline)}</div><div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="${esc(prevAction)}" ${prevDisabled ? 'disabled' : ''}>← Semana anterior</button><button type="button" class="btn btn-outline" data-action="${esc(nextAction)}" ${nextDisabled ? 'disabled' : ''}>Próxima semana →</button>${clearAction ? `<button type="button" class="btn btn-soft" data-action="${esc(clearAction)}">${esc(clearLabel || 'Limpar')}</button>` : ''}</div></div>
+        <div class="calendar-toolbar"><div class="calendar-range">${esc(headline)}</div><div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="${esc(prevAction)}" ${prevDisabled ? 'disabled' : ''}>← Anterior</button><button type="button" class="btn btn-outline" data-action="${esc(nextAction)}" ${nextDisabled ? 'disabled' : ''}>Próxima →</button>${clearAction ? `<button type="button" class="btn btn-soft" data-action="${esc(clearAction)}">${esc(clearLabel || 'Limpar')}</button>` : ''}</div></div>
         <div class="calendar-hint">${esc(help)}</div>
+        ${mobileCalendarControls()}
         <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day => `<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(hour => `<tr><th class="hour-label">${esc(hour)}</th>${days.map(day => {
           const slot = slotLabel(day, hour);
           const selectable = isSelectable(slot);
@@ -752,7 +756,6 @@
       </div>`;
     }
     function restoreMyAnswer(id){
-      // O participante recebe a grade do GAS, sem consultar dados locais.
       state.person = '';
       state.chosen = new Set();
       state.saved = false;
@@ -787,9 +790,6 @@
           }
         }
         state.responses = data.active_responses || [];
-        // A resposta do GAS pode incluir seu próprio /exec como app_url.
-        // Não usá-lo como URL pública: o frontend está no GitHub Pages.
-        state.appUrl = '';
         if (route.page === 'participant') restoreMyAnswer(route.id);
         state.loading = false;
         render();
@@ -920,8 +920,6 @@
         btn.disabled = false; btn.textContent = 'Criar reunião e gerar link →';
       }
     }
-    // A existência da resposta é verificada no GAS sob o mesmo lock da escrita.
-    // Assim, o aviso também funciona se a pessoa respondeu em outro dispositivo.
     function showReplacementConfirm(payload){
       state.pendingVote = payload;
       document.getElementById('replace-person-name').textContent = payload.participant_name;
@@ -970,7 +968,7 @@
             renderParticipant();
             showToast('A reunião foi alterada pelo gestor. Sua seleção foi ajustada: confira e salve novamente.');
             return;
-          } catch (_) { /* Mantém o erro original se a recarga falhar. */ }
+          } catch (_) {}
         }
         showToast('Não foi possível salvar: ' + message);
         if(btn){btn.disabled=false;btn.textContent='Salvar disponibilidade →';}
@@ -1031,8 +1029,6 @@
       cancelButton.disabled=true;
       confirmButton.textContent='Substituindo...';
       try {
-        // A segunda chamada confirma explicitamente a substituição.
-        // O GAS verifica novamente a existência da resposta com o lock ativo.
         await completeVote({...pending, replace_existing:true});
       } finally {
         confirmButton.disabled=false;
@@ -1050,6 +1046,11 @@
       const b = e.target.closest('[data-action]');
       if (!b) return;
       const action = b.dataset.action;
+      if (action === 'calendar-scroll') {
+        const grid = b.closest('.calendar-shell')?.querySelector('.calendar-wrap');
+        if (grid) grid.scrollBy({left:(b.dataset.direction === '-1' ? -1 : 1) * Math.max(160,grid.clientWidth * 0.72),behavior:'smooth'});
+        return;
+      }
       if (action === 'weeks-review') { reviewUnreviewedWeeks(); return; }
       if (action === 'weeks-save-anyway') { saveWithoutWeekReview(); return; }
       if (action === 'replace-cancel') { closeReplacementConfirm(); return; }
