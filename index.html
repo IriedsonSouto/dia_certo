@@ -136,6 +136,21 @@
     .slot-btn .dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#f2f5fb}
     .slot-btn.active-create .dot{background:#dce6ff}
     .slot-btn.active-vote .dot{background:#d4f2e5}
+    /* Navegação clara entre as semanas que de fato possuem horários propostos. */
+    .week-overview{background:#f8faff;border:1px solid #dfe7f7;border-radius:13px;padding:16px;margin:0 0 18px}
+    .week-overview-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+    .week-overview-title{font-size:13px;font-weight:790;color:var(--ink)}
+    .week-overview-count{font-size:12px;color:var(--muted)}
+    .week-list{display:flex;gap:9px;overflow-x:auto;padding:2px 2px 5px;scrollbar-width:thin}
+    .week-option{flex:1 0 152px;min-width:152px;text-align:left;border:1px solid #dfe6f1;border-radius:10px;padding:10px 12px;background:white;color:var(--ink);transition:background .12s,border-color .12s}
+    .week-option:hover{border-color:#a9bbeb;background:#fbfcff}
+    .week-option.current{background:var(--blue-soft);border-color:#96aefa;box-shadow:inset 0 0 0 1px #96aefa}
+    .week-option-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:760}
+    .week-option-range{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+    .week-option-status{display:block;margin-top:6px;font-size:11px;color:#9a6c20;font-weight:720}
+    .week-option.seen .week-option-status{color:var(--green)}
+    .week-overview-note{margin:10px 0 0;font-size:12px;color:#536784;line-height:1.5}
+    .week-overview-note strong{color:var(--blue)}
     .calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:16px}
     .selection-count{font-size:13px;color:var(--muted)}
     .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
@@ -157,6 +172,15 @@
     .editing-warning{background:#fff9ec;border:1px solid #ead5ac;padding:14px 16px;border-radius:10px;color:#785719;font-size:13px;margin:12px 0 0}
     .results-section{margin-top:27px}
     .read-only-grid .slot-btn{pointer-events:none;cursor:default}
+    .confirm-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,30,52,.48);display:grid;place-items:center;padding:20px}
+    .confirm-backdrop[hidden]{display:none!important}
+    .confirm-panel{background:var(--surface);border-radius:18px;box-shadow:0 24px 80px rgba(9,28,58,.22);border:1px solid var(--line);padding:30px;width:min(100%,460px)}
+    .confirm-symbol{display:grid;place-items:center;width:42px;height:42px;background:#fff4de;border-radius:12px;color:#93630d;font-size:23px;margin-bottom:16px}
+    .confirm-panel h2{font-size:21px;margin-bottom:10px}
+    .confirm-panel p{color:var(--muted);line-height:1.6;font-size:14px;margin:0 0 22px}
+    .confirm-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+    @media(max-width:480px){.confirm-panel{padding:23px}.confirm-actions{flex-direction:column-reverse}.confirm-actions .btn{width:100%}}
+    @media(max-width:700px){.week-option{flex:0 0 155px}.week-overview{padding:13px}.week-list{margin-right:-6px}}
     @media(max-width:700px){
       .topbar{height:66px}.topbar-inner{padding:0 18px}.wrap{padding:30px 16px 70px}
       .heading{flex-direction:column;gap:16px;margin-bottom:24px}.heading .btn{width:100%}
@@ -180,6 +204,28 @@
   </header>
   <main id="app" class="wrap" aria-live="polite" data-route-query="<?= routeQuery ?>" data-public-url="<?= publicUrl ?>"></main>
   <div id="toast-container" aria-live="polite"></div>
+  <div class="confirm-backdrop" id="replace-dialog" hidden>
+    <div class="confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="replace-title" aria-describedby="replace-description">
+      <span class="confirm-symbol" aria-hidden="true">!</span>
+      <h2 id="replace-title">Já existe uma resposta salva</h2>
+      <p id="replace-description">Já existe uma disponibilidade salva para <strong id="replace-person-name"></strong> nesta reunião. Tem certeza de que deseja substituir a resposta anterior pelos horários selecionados agora?</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-outline" data-action="replace-cancel" id="replace-cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" data-action="replace-confirm" id="replace-confirm">Sim, substituir resposta</button>
+      </div>
+    </div>
+  </div>
+  <div class="confirm-backdrop" id="weeks-dialog" hidden>
+    <div class="confirm-panel" role="alertdialog" aria-modal="true" aria-labelledby="weeks-title" aria-describedby="weeks-description">
+      <span class="confirm-symbol" aria-hidden="true">!</span>
+      <h2 id="weeks-title">Existem outras semanas para conferir</h2>
+      <p id="weeks-description">Há horários propostos em semanas que você ainda não abriu. Deseja revisar essas opções antes de enviar sua disponibilidade?</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-outline" data-action="weeks-save-anyway" id="weeks-save-anyway">Salvar mesmo assim</button>
+        <button type="button" class="btn btn-primary" data-action="weeks-review" id="weeks-review">Revisar semanas</button>
+      </div>
+    </div>
+  </div>
 
   <script>
   (() => {
@@ -240,6 +286,9 @@
       chosen:new Set(),
       saved:false,
       personalError:'',
+      pendingVote:null,
+      pendingWeekVote:null,
+      visitedVoteWeeks:new Set(),
       participantWeekStart:null,
       drag:{active:false, mode:'', value:false},
       editOpen:false,
@@ -350,6 +399,48 @@
       return (poll?.slots || []).map(s => typeof s === 'string' ? s : s.label).filter(Boolean).sort();
     }
     function responseName(r){return String(r.participant_name || '').trim();}
+    function proposedVoteWeeks(slots){
+      // Semanas sem blocos não são exibidas na navegação do participante.
+      const map=new Map();
+      slots.forEach(slot=>{
+        const date=splitSlot(slot).date;
+        if(!date)return;
+        const week=getWeekStart(date);
+        map.set(week,(map.get(week)||0)+1);
+      });
+      return [...map.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([start,count])=>({start,count}));
+    }
+    function unreviewedVoteWeeks(slots){
+      return proposedVoteWeeks(slots).filter(w=>!state.visitedVoteWeeks.has(w.start));
+    }
+    function openVoteWeek(weekStart){
+      const weeks=proposedVoteWeeks(pollSlots(state.poll));
+      if(!weeks.some(w=>w.start===weekStart))return;
+      state.participantWeekStart=weekStart;
+      state.visitedVoteWeeks.add(weekStart);
+      renderParticipant();
+    }
+    function renderVoteWeekOverview(weeks, current){
+      if(weeks.length<2)return '';
+      const reviewed=weeks.filter(w=>state.visitedVoteWeeks.has(w.start)).length;
+      const remaining=weeks.length-reviewed;
+      const otherSlots=weeks.filter(w=>w.start!==current).reduce((n,w)=>n+w.count,0);
+      return `<div class="week-overview" aria-label="Semanas da reunião">
+        <div class="week-overview-top"><span class="week-overview-title">Confira todas as semanas</span><span class="week-overview-count">${reviewed} de ${weeks.length} semanas conferidas</span></div>
+        <div class="week-list" role="group" aria-label="Escolher uma semana com horários">
+        ${weeks.map((w,i)=>{
+          const visited=state.visitedVoteWeeks.has(w.start);
+          const currentWeek=w.start===current;
+          return `<button type="button" class="week-option ${currentWeek?'current':''} ${visited?'seen':''}" data-action="vote-week" data-week="${esc(w.start)}" ${currentWeek?'aria-current="true"':''} aria-label="Semana ${i+1}, ${w.count} horários propostos, ${visited?'conferida':'ainda não conferida'}">
+            <span class="week-option-top"><span>Semana ${i+1}</span><span>${w.count} h</span></span>
+            <span class="week-option-range">${esc(formatRange(w.start,VISIBLE_DAYS))}</span>
+            <span class="week-option-status">${visited?'✓ Conferida':'• Não conferida'}</span>
+          </button>`;
+        }).join('')}
+        </div>
+        <p class="week-overview-note">${remaining ? `<strong>${plural(remaining,'semana ainda não conferida','semanas ainda não conferidas')}.</strong> Há ${plural(otherSlots,'horário proposto','horários propostos')} fora da semana exibida.` : '✓ Você já conferiu todas as semanas. Pode salvar mesmo sem marcar horários em alguma delas.'}</p>
+      </div>`;
+    }
     function rpc(name,...args){
       return new Promise((resolve,reject)=>{
         try {google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e?.message || 'Falha no Google Apps Script')))[name](...args);}
@@ -541,14 +632,13 @@
         return;
       }
       const slots = pollSlots(poll);
-      const dates = [...new Set(slots.map(s => splitSlot(s).date))].sort();
-      const weekStart = state.participantWeekStart || (dates[0] ? getWeekStart(dates[0]) : getWeekStart(todayIso()));
+      const weeks = proposedVoteWeeks(slots);
+      const weekStart = weeks.some(w=>w.start===state.participantWeekStart)
+        ? state.participantWeekStart : (weeks[0]?.start || getWeekStart(todayIso()));
       const visibleDays = rangeDays(weekStart, VISIBLE_DAYS);
-      const validVisibleDays = visibleDays.some(day => dates.includes(day));
-      const prevWeek = addDays(weekStart, -7);
-      const nextWeek = addDays(weekStart, 7);
-      const canPrev = dates.length ? prevWeek <= dates[dates.length - 1] && weekStart > getWeekStart(dates[0]) : false;
-      const canNext = dates.length ? nextWeek <= getWeekStart(dates[dates.length - 1]) || visibleDays[VISIBLE_DAYS-1] < dates[dates.length - 1] : false;
+      const index = weeks.findIndex(w=>w.start===weekStart);
+      const canPrev = index>0;
+      const canNext = index>=0 && index<weeks.length-1;
       app.innerHTML = `
         <div class="heading"><div class="heading-copy"><p class="eyebrow">Sua resposta</p><h1>${esc(poll.title)}</h1><p class="lead">${esc(poll.description || 'Informe seu nome e marque na grade os horários em que você pode participar.')}</p></div></div>
         <form id="vote-form" class="card">
@@ -556,6 +646,7 @@
           <div class="field"><label for="person-name">Seu nome *</label><input id="person-name" name="person-name" type="text" maxlength="100" autocomplete="name" placeholder="Ex.: Ana Clara" value="${esc(state.person)}">${state.personalError ? `<p class="hint" style="color:#943743">${esc(state.personalError)}</p>` : '<p class="hint">Use o mesmo nome caso queira atualizar sua resposta depois.</p>'}</div>
           <div class="field">
             <div class="section-header" style="margin-bottom:10px"><h2>Selecione quando você pode</h2><button class="btn btn-text" type="button" data-action="vote-clear">Limpar minha seleção</button></div>
+            ${renderVoteWeekOverview(weeks,weekStart)}
             ${renderCalendarGrid({
               type:'vote',
               days:visibleDays,
@@ -568,7 +659,6 @@
               prevDisabled:!canPrev,
               nextDisabled:!canNext,
             })}
-            ${!validVisibleDays ? '<p class="hint">Nesta semana não há horários propostos. Use as setas para navegar.</p>' : ''}
           </div>
           <div class="calendar-footer"><span class="selection-count">${plural(state.chosen.size,'horário selecionado','horários selecionados')}</span><button class="btn btn-primary" type="submit" id="vote-submit">${state.saved ? 'Atualizar disponibilidade' : 'Salvar disponibilidade'} →</button></div>
           <p class="hint">Cada marcação representa um período de 1 hora.</p>
@@ -667,9 +757,11 @@
       state.chosen = new Set();
       state.saved = false;
       state.personalError = '';
-      const slots = pollSlots(state.poll);
-      const dates = [...new Set(slots.map(s => splitSlot(s).date))].sort();
-      state.participantWeekStart = dates[0] ? getWeekStart(dates[0]) : getWeekStart(todayIso());
+      const weeks=proposedVoteWeeks(pollSlots(state.poll));
+      state.participantWeekStart=weeks[0]?.start || getWeekStart(todayIso());
+      state.visitedVoteWeeks=new Set([state.participantWeekStart]);
+      state.pendingWeekVote=null;
+      document.getElementById('weeks-dialog').hidden=true;
     }
     function saveDraft(){
       const t = document.getElementById('meeting-title');
@@ -828,7 +920,92 @@
         btn.disabled = false; btn.textContent = 'Criar reunião e gerar link →';
       }
     }
+    // A existência da resposta é verificada no GAS sob o mesmo lock da escrita.
+    // Assim, o aviso também funciona se a pessoa respondeu em outro dispositivo.
+    function showReplacementConfirm(payload){
+      state.pendingVote = payload;
+      document.getElementById('replace-person-name').textContent = payload.participant_name;
+      document.getElementById('replace-dialog').hidden = false;
+      document.getElementById('replace-cancel').focus();
+    }
+    function closeReplacementConfirm(){
+      state.pendingVote = null;
+      document.getElementById('replace-dialog').hidden = true;
+      const btn = document.getElementById('vote-submit');
+      if(btn){btn.disabled = false;btn.textContent = state.saved ? 'Atualizar disponibilidade →' : 'Salvar disponibilidade →';}
+      btn?.focus();
+    }
+    async function completeVote(payload){
+      const btn = document.getElementById('vote-submit');
+      if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+      try {
+        const result = await saveVote(payload);
+        if (result?.requires_confirmation) {
+          showReplacementConfirm(payload);
+          return;
+        }
+        state.pendingVote = null;
+        document.getElementById('replace-dialog').hidden = true;
+        state.saved = true;
+        renderParticipant();
+        showToast('Sua disponibilidade foi salva.');
+      }catch(e){
+        state.pendingVote = null;
+        document.getElementById('replace-dialog').hidden = true;
+        const message=String(e?.message||e);
+        if (/horários? não pertence|horários? não pertencem|horário inválido/i.test(message)) {
+          try {
+            const latest=await bootstrap(state.poll.id);
+            const current=state.chosen;
+            state.poll=latest.active_poll;
+            const valid=new Set(pollSlots(state.poll));
+            state.chosen=new Set([...current].filter(s=>valid.has(s)));
+            const updatedWeeks=proposedVoteWeeks(pollSlots(state.poll));
+            state.visitedVoteWeeks=new Set(updatedWeeks.map(w=>w.start).filter(w=>state.visitedVoteWeeks.has(w)));
+            state.participantWeekStart=updatedWeeks[0]?.start || getWeekStart(todayIso());
+            state.visitedVoteWeeks.add(state.participantWeekStart);
+            state.pendingWeekVote=null;
+            document.getElementById('weeks-dialog').hidden=true;
+            state.saved=false;
+            renderParticipant();
+            showToast('A reunião foi alterada pelo gestor. Sua seleção foi ajustada: confira e salve novamente.');
+            return;
+          } catch (_) { /* Mantém o erro original se a recarga falhar. */ }
+        }
+        showToast('Não foi possível salvar: ' + message);
+        if(btn){btn.disabled=false;btn.textContent='Salvar disponibilidade →';}
+      }
+    }
+    function showUnreviewedWeeksConfirm(payload){
+      state.pendingWeekVote=payload;
+      const remaining=unreviewedVoteWeeks(pollSlots(state.poll));
+      const count=remaining.reduce((n,w)=>n+w.count,0);
+      document.getElementById('weeks-description').textContent=
+        `Você ainda não conferiu ${plural(remaining.length,'semana','semanas')} com ${plural(count,'horário proposto','horários propostos')}. Deseja revisar essas opções antes de salvar? Você pode deixar uma semana sem marcações se não estiver disponível.`;
+      document.getElementById('weeks-dialog').hidden=false;
+      document.getElementById('weeks-review').focus();
+    }
+    function closeUnreviewedWeeksConfirm(){
+      state.pendingWeekVote=null;
+      document.getElementById('weeks-dialog').hidden=true;
+      document.getElementById('vote-submit')?.focus();
+    }
+    function reviewUnreviewedWeeks(){
+      const remaining=unreviewedVoteWeeks(pollSlots(state.poll));
+      closeUnreviewedWeeksConfirm();
+      if(remaining.length){
+        openVoteWeek(remaining[0].start);
+        app.querySelector(`[data-action="vote-week"][data-week="${remaining[0].start}"]`)?.focus();
+      }
+    }
+    function saveWithoutWeekReview(){
+      const pending=state.pendingWeekVote;
+      state.pendingWeekVote=null;
+      document.getElementById('weeks-dialog').hidden=true;
+      if(pending)completeVote(pending);
+    }
     async function submitVote(form){
+      if (state.pendingVote || state.pendingWeekVote) return;
       const name = form.querySelector('#person-name').value.trim().replace(/\s+/g,' ');
       if (!name) {
         state.personalError = 'Digite seu nome para continuar.';
@@ -838,33 +1015,29 @@
       }
       state.person = name;
       state.personalError = '';
-      const btn = document.getElementById('vote-submit');
-      btn.disabled = true; btn.textContent = 'Salvando...';
-      try{
-        const payload = {poll_id:state.poll.id, participant_name:name, slots:[...state.chosen].sort(), locations:[]};
-        await saveVote(payload);
-        state.saved = true;
-        renderParticipant();
-        showToast('Sua disponibilidade foi salva.');
-      }catch(e){
-        const message=String(e?.message||e);
-        if (/horários? não pertence|horários? não pertencem|horário inválido/i.test(message)) {
-          try {
-            const latest=await bootstrap(state.poll.id);
-            const current=state.chosen;
-            state.poll=latest.active_poll;
-            const valid=new Set(pollSlots(state.poll));
-            state.chosen=new Set([...current].filter(s=>valid.has(s)));
-            const dates=pollSlots(state.poll).map(s=>splitSlot(s).date).filter(Boolean);
-            if(dates.length)state.participantWeekStart=getWeekStart(dates.sort()[0]);
-            state.saved=false;
-            renderParticipant();
-            showToast('A reunião foi alterada pelo gestor. Sua seleção foi ajustada: confira e salve novamente.');
-            return;
-          } catch (_) { /* Mantém o erro original se a recarga falhar. */ }
-        }
-        showToast('Não foi possível salvar: ' + message);
-        btn.disabled = false; btn.textContent = 'Salvar disponibilidade →';
+      const payload = {poll_id:state.poll.id, participant_name:name, slots:[...state.chosen].sort(), locations:[]};
+      if(unreviewedVoteWeeks(pollSlots(state.poll)).length){
+        showUnreviewedWeeksConfirm(payload);
+        return;
+      }
+      await completeVote(payload);
+    }
+    async function confirmReplacement(){
+      const pending=state.pendingVote;
+      if (!pending) return;
+      const confirmButton=document.getElementById('replace-confirm');
+      const cancelButton=document.getElementById('replace-cancel');
+      confirmButton.disabled=true;
+      cancelButton.disabled=true;
+      confirmButton.textContent='Substituindo...';
+      try {
+        // A segunda chamada confirma explicitamente a substituição.
+        // O GAS verifica novamente a existência da resposta com o lock ativo.
+        await completeVote({...pending, replace_existing:true});
+      } finally {
+        confirmButton.disabled=false;
+        cancelButton.disabled=false;
+        confirmButton.textContent='Sim, substituir resposta';
       }
     }
 
@@ -877,6 +1050,10 @@
       const b = e.target.closest('[data-action]');
       if (!b) return;
       const action = b.dataset.action;
+      if (action === 'weeks-review') { reviewUnreviewedWeeks(); return; }
+      if (action === 'weeks-save-anyway') { saveWithoutWeekReview(); return; }
+      if (action === 'replace-cancel') { closeReplacementConfirm(); return; }
+      if (action === 'replace-confirm') { confirmReplacement(); return; }
       if (action === 'new') { navigate('create'); return; }
       if (action === 'home') { navigate('home'); return; }
       if (action === 'results') { navigate('results', b.dataset.id); return; }
@@ -913,9 +1090,26 @@
         render();
         return;
       }
-      if (action === 'vote-prev-week') { if (state.participantWeekStart) { state.participantWeekStart = addDays(state.participantWeekStart, -7); renderParticipant(); } return; }
-      if (action === 'vote-next-week') { if (state.participantWeekStart) { state.participantWeekStart = addDays(state.participantWeekStart, 7); renderParticipant(); } return; }
+      if (action === 'vote-week') { openVoteWeek(b.dataset.week); return; }
+      if (action === 'vote-prev-week' || action === 'vote-next-week') {
+        const weeks=proposedVoteWeeks(pollSlots(state.poll));
+        const index=weeks.findIndex(w=>w.start===state.participantWeekStart);
+        const next=index+(action==='vote-next-week'?1:-1);
+        if(weeks[next])openVoteWeek(weeks[next].start);
+        return;
+      }
       if (action === 'vote-clear') { state.chosen = new Set(); state.saved = false; renderParticipant(); return; }
+    });
+    document.addEventListener('keydown', e => {
+      if(e.key === 'Escape' && !document.getElementById('weeks-dialog').hidden) {
+        e.preventDefault();
+        closeUnreviewedWeeksConfirm();
+        return;
+      }
+      if(e.key === 'Escape' && !document.getElementById('replace-dialog').hidden) {
+        const b=document.getElementById('replace-cancel');
+        if(!b.disabled){ e.preventDefault(); closeReplacementConfirm(); }
+      }
     });
     app.addEventListener('pointerdown', e => {
       const btn = e.target.closest('[data-slot][data-grid]');
