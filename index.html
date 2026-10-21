@@ -116,7 +116,7 @@
     .calendar-range{font-size:14px;font-weight:760;letter-spacing:-.02em}
     .calendar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .calendar-hint{padding:12px 16px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);background:#fff}
-    .calendar-wrap{overflow:auto;max-width:100%}
+    .calendar-wrap{overflow:auto;max-width:100%;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
     .calendar-grid{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;table-layout:fixed}
     .calendar-grid th,.calendar-grid td{padding:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center}
     .calendar-grid thead th{background:#fafbfd;color:#617189;font-size:12px;font-weight:760;position:sticky;top:0;z-index:3}
@@ -128,7 +128,7 @@
     .day-head{min-width:96px}
     .day-head .top{display:block;font-size:12px;font-weight:780;color:var(--ink);padding-top:10px}
     .day-head .sub{display:block;font-size:11px;color:var(--muted);padding:2px 6px 10px}
-    .slot-btn{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border:none;background:#fff;color:#9aa8bb;font-size:12px;font-weight:720;user-select:none;-webkit-user-select:none;touch-action:none;transition:background .08s,color .08s,box-shadow .08s}
+    .slot-btn{display:flex;align-items:center;justify-content:center;width:100%;height:52px;border:none;background:#fff;color:#9aa8bb;font-size:12px;font-weight:720;user-select:none;-webkit-user-select:none;touch-action:pan-x pan-y;transition:background .08s,color .08s,box-shadow .08s}
     .slot-btn:hover{background:#f6f9ff;color:#5a6f8d}
     .slot-btn.active-create{background:var(--blue-soft);color:var(--blue);box-shadow:inset 0 0 0 1px #c8d7ff}
     .slot-btn.active-vote{background:var(--green-soft);color:var(--green);box-shadow:inset 0 0 0 1px #bfe7d7}
@@ -180,12 +180,26 @@
     .confirm-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
     @media(max-width:480px){.confirm-panel{padding:23px}.confirm-actions{flex-direction:column-reverse}.confirm-actions .btn{width:100%}}
     .calendar-mobile-nav{display:none}
+    .calendar-scrollbar{display:none}
+    .mobile-instruction{display:none}
     .week-scroll-hint{display:none}
     @media(max-width:700px){
       .week-option{flex:0 0 155px}.week-overview{padding:13px}.week-list{margin-right:-6px}
       .week-scroll-hint{display:block;color:#687993;font-size:11px;margin-top:7px}
       .calendar-mobile-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);background:#f8faff}
       .calendar-mobile-nav span{font-size:12px;color:#536784}
+      .desktop-instruction{display:none}
+      .mobile-instruction{display:inline}
+      .calendar-scrollbar{display:flex;flex-direction:column;gap:5px;padding:12px 15px 14px;background:#f8faff;border-top:1px solid var(--line)}
+      .calendar-scrollbar-header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#526884;font-size:12px}
+      .calendar-scrollbar-header strong{font-weight:750}
+      .calendar-scrollbar input[type=range]{width:100%;height:30px;margin:0;cursor:grab;accent-color:var(--blue);touch-action:none}
+      .calendar-scrollbar input[type=range]:active{cursor:grabbing}
+      .calendar-scrollbar input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:100px;background:#d8e2fa}
+      .calendar-scrollbar input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-8px;border-radius:100%;background:var(--blue);border:4px solid white;box-shadow:0 1px 5px rgba(36,73,188,.25)}
+      .calendar-scrollbar input[type=range]{-webkit-appearance:none;appearance:none}
+      .calendar-scrollbar input[type=range]::-moz-range-track{height:8px;border-radius:100px;background:#d8e2fa}
+      .calendar-scrollbar input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:var(--blue);border:3px solid white}
       .calendar-mobile-buttons{display:flex;gap:7px;flex-shrink:0}
       .calendar-mobile-buttons button{min-width:42px;height:42px;border:1px solid #cbd8f1;border-radius:9px;background:#fff;color:var(--blue);font-size:20px;font-weight:750;line-height:1}
       .calendar-grid thead th:first-child{left:0;background:#fafbfd}
@@ -679,6 +693,7 @@
           <div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="heat-prev-week" ${weekStart<=resultWeekBounds(slots).first?'disabled':''}>← Anterior</button><button type="button" class="btn btn-outline" data-action="heat-next-week" ${weekStart>=resultWeekBounds(slots).last?'disabled':''}>Próxima →</button></div></div>
         <div class="calendar-hint">Cada bloco mostra quantas pessoas podem participar. Quanto mais escuro, maior a adesão.</div>
         ${mobileCalendarControls()}
+        ${mobileCalendarScrollbar()}
         <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>
         ${HOURS.map(hour=>`<tr><th class="hour-label">${esc(hour)}</th>${days.map(day=>{
           const slot=slotLabel(day,hour);
@@ -733,6 +748,27 @@
         </section>
         <details class="details results-section"><summary>Ver classificação completa dos horários</summary><div class="table-wrap"><table><thead><tr><th>Dia e hora</th><th>Pessoas disponíveis</th><th>Proporção</th></tr></thead><tbody>${results.map(r=>{const pct=total?Math.round(r.count/total*100):0;return `<tr><td class="table-date">${esc(formatPrettySlot(r.label))}${max>0&&r.count===max?'<span class="best-tag">Mais votado</span>':''}</td><td class="vote-count">${r.count} de ${total}</td><td>${pct}%</td></tr>`;}).join('')}</tbody></table></div></details>`;
     }
+    function mobileCalendarScrollbar(){
+      return `<div class="calendar-scrollbar">
+        <div class="calendar-scrollbar-header"><strong>Deslize a barra para ver outros dias</strong><span class="calendar-scroll-position">Dias 1–3 de 7</span></div>
+        <input type="range" data-calendar-range min="0" max="100" value="0" step="1" aria-label="Deslocar o calendário horizontalmente pelos dias">
+      </div>`;
+    }
+    function syncCalendarScrollbar(wrap){
+      const shell=wrap.closest('.calendar-shell');
+      const slider=shell?.querySelector('[data-calendar-range]');
+      if(!slider)return;
+      const max=Math.max(0,wrap.scrollWidth-wrap.clientWidth);
+      slider.value=max ? String(Math.round(wrap.scrollLeft/max*100)) : '0';
+      const headers=[...wrap.querySelectorAll('.day-head')];
+      const viewport=wrap.getBoundingClientRect();
+      const hourWidth=wrap.querySelector('.hour-head')?.getBoundingClientRect().width||84;
+      const left=viewport.left+Math.min(hourWidth,wrap.clientWidth);
+      const visible=headers.map((el,i)=>({i,rect:el.getBoundingClientRect()}))
+        .filter(({rect})=>rect.right>left+1 && rect.left<viewport.right-1).map(x=>x.i+1);
+      const indicator=shell.querySelector('.calendar-scroll-position');
+      if(indicator && visible.length)indicator.textContent=`Dias ${visible[0]}–${visible[visible.length-1]} de ${headers.length}`;
+    }
     function mobileCalendarControls(){
       return `<div class="calendar-mobile-nav" aria-label="Navegação pelos dias do calendário">
         <span>Veja outros dias <span aria-hidden="true">→</span></span>
@@ -745,8 +781,9 @@
     function renderCalendarGrid({type, days, activeSet, isSelectable, headline, help, prevAction, nextAction, clearAction, clearLabel, prevDisabled=false, nextDisabled=false}){
       return `<div class="calendar-shell">
         <div class="calendar-toolbar"><div class="calendar-range">${esc(headline)}</div><div class="calendar-actions"><button type="button" class="btn btn-outline" data-action="${esc(prevAction)}" ${prevDisabled ? 'disabled' : ''}>← Anterior</button><button type="button" class="btn btn-outline" data-action="${esc(nextAction)}" ${nextDisabled ? 'disabled' : ''}>Próxima →</button>${clearAction ? `<button type="button" class="btn btn-soft" data-action="${esc(clearAction)}">${esc(clearLabel || 'Limpar')}</button>` : ''}</div></div>
-        <div class="calendar-hint">${esc(help)}</div>
+        <div class="calendar-hint"><span class="desktop-instruction">${esc(help)}</span><span class="mobile-instruction">${type==='individual'?'Deslize para os lados para consultar outros dias.':'Toque para marcar um horário; deslize para os lados para ver outros dias.'}</span></div>
         ${mobileCalendarControls()}
+        ${mobileCalendarScrollbar()}
         <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day => `<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(hour => `<tr><th class="hour-label">${esc(hour)}</th>${days.map(day => {
           const slot = slotLabel(day, hour);
           const selectable = isSelectable(slot);
@@ -867,7 +904,19 @@
       state.drag.lastSlot = slot;
       applySlotSelection(context, slot, state.drag.value);
     }
-    function stopDrag(){if(state.drag.active && state.drag.mode==='edit' && state.editOpen){state.drag.active=false;renderResults();}else state.drag.active = false;}
+    function refreshEditCalendar(){
+      const previous=app.querySelector('.calendar-wrap');
+      const offset=previous?.scrollLeft||0;
+      renderResults();
+      const next=app.querySelector('.calendar-wrap');
+      if(next){next.scrollLeft=offset;syncCalendarScrollbar(next);}
+    }
+    function stopDrag(){
+      if(state.drag.active && state.drag.mode==='edit' && state.editOpen){
+        state.drag.active=false;
+        refreshEditCalendar();
+      }else state.drag.active=false;
+    }
     async function submitEditedSlots(){
       if(state.editSaving)return;
       const slots=[...state.editSlots].sort();
@@ -1112,26 +1161,82 @@
         if(!b.disabled){ e.preventDefault(); closeReplacementConfirm(); }
       }
     });
+    // No celular, o navegador controla o gesto de rolagem. Somente um toque
+    // completo (click) altera o horário; arrastar o dedo não marca células.
+    let pendingTouchSlot = null;
+    let draggingScrollbar = null;
+    function scrubCalendarScrollbar(slider, clientX){
+      const rect=slider.getBoundingClientRect();
+      const padding=12;
+      const available=Math.max(1,rect.width-2*padding);
+      const percent=Math.max(0,Math.min(100,Math.round((clientX-rect.left-padding)/available*100)));
+      slider.value=String(percent);
+      slider.dispatchEvent(new Event('input',{bubbles:true}));
+    }
     app.addEventListener('pointerdown', e => {
-      const btn = e.target.closest('[data-slot][data-grid]');
-      if (!btn || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const slider=e.target.closest('[data-calendar-range]');
+      if(slider){
+        if(e.pointerType==='mouse' && e.button!==0)return;
+        e.preventDefault();
+        draggingScrollbar={slider,pointerId:e.pointerId};
+        slider.focus({preventScroll:true});
+        try{slider.setPointerCapture(e.pointerId);}catch(_){ }
+        scrubCalendarScrollbar(slider,e.clientX);
+        return;
+      }
+      const btn=e.target.closest('[data-slot][data-grid]');
+      pendingTouchSlot=null;
+      if (!btn) return;
+      if (e.pointerType === 'touch') {
+        pendingTouchSlot=btn.dataset.grid+'|'+btn.dataset.slot;
+        return;
+      }
+      if (e.button !== 0) return;
       e.preventDefault();
-      startDrag(btn.dataset.grid, btn.dataset.slot);
-      try { btn.closest('.calendar-wrap').setPointerCapture(e.pointerId); } catch(_){ }
+      startDrag(btn.dataset.grid,btn.dataset.slot);
+      try {btn.closest('.calendar-wrap').setPointerCapture(e.pointerId);}catch(_){ }
+    });
+    app.addEventListener('click', e => {
+      const btn=e.target.closest('[data-slot][data-grid]');
+      if(!btn) return;
+      if (e.detail===0 || pendingTouchSlot===btn.dataset.grid+'|'+btn.dataset.slot){
+        const set=btn.dataset.grid==='create'?state.draftSlots:btn.dataset.grid==='edit'?state.editSlots:state.chosen;
+        applySlotSelection(btn.dataset.grid,btn.dataset.slot,!set.has(btn.dataset.slot));
+        if(btn.dataset.grid==='edit' && state.editOpen)refreshEditCalendar();
+      }
+      pendingTouchSlot=null;
     });
     app.addEventListener('pointermove', e => {
+      if(draggingScrollbar && draggingScrollbar.pointerId===e.pointerId){
+        scrubCalendarScrollbar(draggingScrollbar.slider,e.clientX);
+        return;
+      }
       if (!state.drag.active) return;
       if (e.cancelable) e.preventDefault();
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const btn = el?.closest?.('[data-slot][data-grid]');
-      if (btn) enterDrag(btn.dataset.grid, btn.dataset.slot);
+      const el=document.elementFromPoint(e.clientX,e.clientY);
+      const btn=el?.closest?.('[data-slot][data-grid]');
+      if (btn) enterDrag(btn.dataset.grid,btn.dataset.slot);
     });
-    app.addEventListener('pointerup', stopDrag);
-    app.addEventListener('pointercancel', stopDrag);
-    window.addEventListener('blur', stopDrag);
+    app.addEventListener('pointerup', e => {
+      if(draggingScrollbar && draggingScrollbar.pointerId===e.pointerId){
+        scrubCalendarScrollbar(draggingScrollbar.slider,e.clientX);
+        draggingScrollbar=null;
+        return;
+      }
+      stopDrag();
+    });
+    app.addEventListener('pointercancel', () => {draggingScrollbar=null;pendingTouchSlot=null;stopDrag();});
+    window.addEventListener('blur', () => {draggingScrollbar=null;stopDrag();});
+    app.addEventListener('scroll', e => {
+      if(e.target.classList?.contains('calendar-wrap'))syncCalendarScrollbar(e.target);
+    },true);
     app.addEventListener('change',e=>{if(e.target.id==='individual-person'){state.selectedPerson=e.target.value;renderResults();}});
     app.addEventListener('input', e => {
-      if (e.target.id === 'person-name') state.person = e.target.value;
+      if(e.target.matches('[data-calendar-range]')){
+        const wrap=e.target.closest('.calendar-shell')?.querySelector('.calendar-wrap');
+        if(wrap){wrap.scrollLeft=(wrap.scrollWidth-wrap.clientWidth)*Number(e.target.value)/100;syncCalendarScrollbar(wrap);}
+      }
+      if (e.target.id === 'person-name') state.person=e.target.value;
     });
     app.addEventListener('submit', e => {
       e.preventDefault();
