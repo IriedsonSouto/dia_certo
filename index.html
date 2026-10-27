@@ -123,8 +123,8 @@
     .calendar-grid thead th:first-child{z-index:4}
     .calendar-grid tr:last-child td,.calendar-grid tr:last-child th{border-bottom:none}
     .calendar-grid th:last-child,.calendar-grid td:last-child{border-right:none}
-    .hour-head{width:84px;min-width:84px;background:#fafbfd}
-    .hour-label{width:84px;min-width:84px;background:#fafbfd;color:#617189;font-size:12px;font-weight:760;position:sticky;left:0;z-index:2}
+    .hour-head{width:92px;min-width:92px;background:#fafbfd}
+    .hour-label{width:92px;min-width:92px;background:#fafbfd;color:#617189;font-size:11px;font-weight:760;white-space:nowrap;position:sticky;left:0;z-index:2}
     .day-head{min-width:96px}
     .day-head .top{display:block;font-size:12px;font-weight:780;color:var(--ink);padding-top:10px}
     .day-head .sub{display:block;font-size:11px;color:var(--muted);padding:2px 6px 10px}
@@ -274,7 +274,6 @@
   (() => {
     'use strict';
 
-    // Endpoint público de API. A autorização das funções administrativas é feita no GAS.
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxLHRNqIJICVEsTmu3fuDqHOixcx-etoNhFB7jQIePssRawP3HcC74_ogQ8qee5f38G/exec';
     const HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
     const VISIBLE_DAYS = 7;
@@ -409,9 +408,17 @@
       const m = String(label).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})$/);
       return m ? {date:m[1], hour:m[2]} : {date:'', hour:''};
     }
+    function formatHourInterval(hour, longForm=false){
+      const match=String(hour).match(/^(\d{2}):(\d{2})$/);
+      if(!match)return String(hour);
+      const startMinutes=Number(match[1])*60+Number(match[2]);
+      const endMinutes=(startMinutes+60)%(24*60);
+      const compact=minutes=>`${pad(Math.floor(minutes/60))}h${minutes%60?pad(minutes%60):''}`;
+      return longForm?`das ${compact(startMinutes)} às ${compact(endMinutes)}`:`${compact(startMinutes)}–${compact(endMinutes)}`;
+    }
     function formatPrettySlot(label){
       const parts = splitSlot(label);
-      return parts.date ? `${formatPrettyDate(parts.date)} às ${parts.hour}` : String(label);
+      return parts.date ? `${formatPrettyDate(parts.date)}, ${formatHourInterval(parts.hour,true)}` : String(label);
     }
     function formatRange(startIso, days){
       const endIso = addDays(startIso, days - 1);
@@ -469,7 +476,7 @@
         }).join('')}
         </div>
         <p class="week-scroll-hint">Deslize para o lado para ver as outras semanas.</p>
-        <p class="week-overview-note">${remaining ? `<strong>${plural(remaining,'semana ainda não conferida','semanas ainda não conferidas')}.</strong> Há ${plural(otherSlots,'horário proposto','horários propostos')} fora da semana exibida.` : '✓ Você já conferiu todas as semanas. Pode salvar mesmo sem marcar horários em alguma delas.'}</p>
+        <p class="week-overview-note">${remaining ? `<strong>${plural(remaining,'semana ainda não conferida','semanas ainda não conferidas')}.</strong> Há ${plural(otherSlots,'horário proposto','horários propostos')} fora da semana exibida.` : '✓ Todas as semanas conferidas.'}</p>
       </div>`;
     }
     function rpc(name,...args){
@@ -488,7 +495,6 @@
         u.searchParams.set('_t',String(Date.now()));
         url = u.toString();
       } else {
-        // Requisição simples compatível com o endpoint publicado do Apps Script.
         options.method = 'POST';
         options.headers = {'Content-Type':'text/plain;charset=utf-8'};
         options.body = JSON.stringify({action,...payload});
@@ -501,7 +507,7 @@
       catch (_) {throw new Error('O serviço de reuniões retornou uma resposta inesperada. Avise o organizador.');}
       if(!response.ok || json?.ok !== true){
         const message=String(json?.error || 'O serviço não conseguiu processar a solicitação.');
-        if (/a[cç][aã]o desconhecida/i.test(message)) throw new Error('A versão do serviço está desatualizada. Solicite ao gestor a atualização do sistema.');
+        if (/a[cç][aã]o desconhecida/i.test(message)) throw new Error('Não foi possível acessar esta função. Avise o organizador.');
         if (/Exception:|ReferenceError:|TypeError:|stack trace/i.test(message)) throw new Error('Não foi possível concluir a operação. Tente novamente ou avise o organizador.');
         throw new Error(message);
       }
@@ -621,7 +627,7 @@
       else{state.loading=false;render();}
     }
     function renderHome(){
-      app.innerHTML=`<section class="home-hero"><div class="home-mark">▦</div><p class="eyebrow">DiaCerto</p><h1>Encontre o melhor horário para sua equipe.</h1><p class="lead" style="margin:15px auto 0">Proponha horários, compartilhe a reunião e descubra quando mais pessoas podem participar. Sem cadastro.</p></section>
+      app.innerHTML=`<section class="home-hero"><div class="home-mark">▦</div><p class="eyebrow">DiaCerto</p><h1>Encontre o melhor horário para sua equipe.</h1><p class="lead" style="margin:15px auto 0">Escolha os horários, compartilhe o link e encontre a melhor opção para sua equipe.</p></section>
         <div class="home-choices">
           <button type="button" class="choice-card" data-action="new"><strong>+ Criar reunião</strong><span>Selecione os horários e receba um código exclusivo de gerenciamento.</span></button>
           <button type="button" class="choice-card" data-action="manage"><strong>🔑 Gerenciar reunião</strong><span>Já organizou uma reunião? Entre com o código que recebeu.</span></button>
@@ -662,7 +668,7 @@
       const weekStart = state.draftWeekStart;
       const weekDays = rangeDays(weekStart, VISIBLE_DAYS);
       app.innerHTML = `<button class="back" data-action="home">← Início</button>
-        <div class="heading"><div class="heading-copy"><p class="eyebrow">Nova reunião</p><h1>Criar reunião</h1><p class="lead">Dê um nome ao encontro e selecione na grade os horários que podem entrar na votação.</p></div></div>
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Nova reunião</p><h1>Criar reunião</h1><p class="lead">Dê um nome à reunião e marque os horários disponíveis.</p></div></div>
         <form id="create-form" class="card">
           <div class="field"><label for="meeting-title">Nome da reunião *</label><input id="meeting-title" type="text" maxlength="120" required placeholder="Ex.: Reunião de planejamento" value="${esc(state.draftTitle)}"></div>
           <div class="field"><label for="meeting-desc">Observações <span class="muted" style="font-weight:400">(opcional)</span></label><textarea id="meeting-desc" maxlength="350" placeholder="Ex.: Preferência por horários da manhã, reunião de 1 hora.">${esc(state.draftDescription)}</textarea></div>
@@ -674,7 +680,7 @@
               activeSet:state.draftSlots,
               isSelectable:(slot)=>true,
               headline:`Semana de ${formatRange(weekStart, VISIBLE_DAYS)}`,
-              help:'Clique ou arraste na grade para selecionar os horários. Cada bloco representa 1 hora.',
+              help:'Clique ou arraste para selecionar os horários.',
               prevAction:'create-prev-week',
               nextAction:'create-next-week',
               clearAction:'create-clear-week',
@@ -729,7 +735,7 @@
             })}
           </div>
           <div class="calendar-footer"><span class="selection-count">${plural(state.chosen.size,'horário selecionado','horários selecionados')}</span><button class="btn btn-primary" type="submit" id="vote-submit">${state.saved ? 'Atualizar disponibilidade' : 'Salvar disponibilidade'} →</button></div>
-          <p class="hint">Cada marcação representa um período de 1 hora.</p>
+          
         </form>
         <p class="tiny-note">Suas respostas serão enviadas ao organizador da reunião.</p>`;
     }
@@ -741,17 +747,16 @@
       const top=ranked[0]?.count||0;
       const winners=ranked.filter(x=>x.count===top&&top>0);
       const best=top>0?`<div class="result-days">${winners.map(d=>`<div class="result-day"><strong>${esc(formatPrettyDate(d.date))}</strong><span>${d.count} de ${data.total} pessoas</span></div>`).join('')}</div>`:'<p class="hint">Nenhuma disponibilidade marcada. Consulte o mapa de calor abaixo.</p>';
-      // Os nomes não são enviados ao público; apenas as contagens por horário.
       const start=state.heatWeekStart||resultWeekBounds(slots).first;
       app.innerHTML=`<div class="heading"><div><p class="eyebrow">Votação encerrada</p><h1>${esc(p.title)}</h1><p class="lead">Resultado consolidado · ${plural(data.total,'participante','participantes')} responderam</p></div><span class="badge-status closed">Encerrada</span></div>
-      <section class="card"><h2>Melhores dias</h2><p class="hint">Dias com mais pessoas disponíveis no mesmo horário. Em caso de empate, todos os melhores aparecem.</p>${best}</section>
-      <section class="card"><h2>Mapa de calor da disponibilidade</h2><p class="hint">Cada célula mostra a quantidade de pessoas disponíveis. Nenhuma resposta individual é exibida.</p>${makePublicHeatmap(slots,data,start)}</section>`;
+      <section class="card"><h2>Melhores dias</h2>${best}</section>
+      <section class="card"><h2>Mapa de calor da disponibilidade</h2><p class="hint">Pessoas disponíveis em cada horário.</p>${makePublicHeatmap(slots,data,start)}</section>`;
     }
     function makePublicHeatmap(slots,data,weekStart){
       const days=rangeDays(weekStart,VISIBLE_DAYS),set=new Set(slots),total=data.total||0;
       const counts=data.counts||{},bounds=resultWeekBounds(slots);
       return `<div class="calendar-shell"><div class="calendar-toolbar"><strong>Semana de ${esc(formatRange(weekStart,VISIBLE_DAYS))}</strong><div class="calendar-actions"><button class="btn btn-outline" data-action="heat-prev-week" ${weekStart<=bounds.first?'disabled':''}>← Anterior</button><button class="btn btn-outline" data-action="heat-next-week" ${weekStart>=bounds.last?'disabled':''}>Próxima →</button></div></div>${mobileCalendarControls()}${mobileCalendarScrollbar()}
-      <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(d=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(d))}</span><span class="sub">${esc(formatShortDate(d))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(h=>`<tr><th class="hour-label">${h}</th>${days.map(d=>{const slot=slotLabel(d,h);if(!set.has(slot))return '<td><span class="heat-slot heat-0">—</span></td>';const n=Number(counts[slot]||0),level=total?Math.ceil(n/total*5):0;return `<td><span class="heat-slot heat-${level}">${n}${total?' / '+total:''}</span></td>`;}).join('')}</tr>`).join('')}</tbody></table></div></div><div class="heat-legend">Mais escuro = mais pessoas disponíveis</div>`;
+      <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Horário</th>${days.map(d=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(d))}</span><span class="sub">${esc(formatShortDate(d))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(h=>`<tr><th class="hour-label">${esc(formatHourInterval(h))}</th>${days.map(d=>{const slot=slotLabel(d,h);if(!set.has(slot))return '<td><span class="heat-slot heat-0">—</span></td>';const n=Number(counts[slot]||0),level=total?Math.ceil(n/total*5):0;return `<td><span class="heat-slot heat-${level}" title="${esc(formatPrettySlot(slot))}: ${n} de ${total} pessoas">${n}${total?' / '+total:''}</span></td>`;}).join('')}</tr>`).join('')}</tbody></table></div></div><div class="heat-legend">Mais escuro = mais pessoas disponíveis</div>`;
     }
     function resultWeekBounds(slots) {
       const dates = slots.map(s=>splitSlot(s).date).filter(Boolean).sort();
@@ -775,8 +780,8 @@
         <div class="calendar-hint">Cada bloco mostra quantas pessoas podem participar. Quanto mais escuro, maior a adesão.</div>
         ${mobileCalendarControls()}
         ${mobileCalendarScrollbar()}
-        <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>
-        ${HOURS.map(hour=>`<tr><th class="hour-label">${esc(hour)}</th>${days.map(day=>{
+        <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Horário</th>${days.map(day=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>
+        ${HOURS.map(hour=>`<tr><th class="hour-label">${esc(formatHourInterval(hour))}</th>${days.map(day=>{
           const slot=slotLabel(day,hour);
           if(!counts.has(slot))return '<td><span class="heat-slot" style="background:#f8fafc;color:#ced6e2" title="Horário não oferecido">—</span></td>';
           const count=counts.get(slot),l=level(slot);
@@ -822,12 +827,12 @@
           <div class="calendar-footer"><span class="selection-count">${plural(state.editSlots.size,'horário selecionado','horários selecionados')}</span><div style="display:flex;gap:9px;flex-wrap:wrap"><button type="button" class="btn btn-outline" data-action="edit-cancel">Cancelar</button><button type="button" class="btn btn-primary" data-action="edit-save" ${state.editSaving?'disabled':''}>${state.editSaving?'Salvando...':'Salvar alterações'}</button></div></div></section>`:''}
         <section class="card"><div class="section-header" style="margin-bottom:0"><h2>Link para os participantes</h2></div>${link?`<div class="share"><input type="text" readonly id="share-url" aria-label="Link para responder" value="${esc(link)}"><button type="button" class="btn btn-primary" data-action="copy">Copiar link</button><button type="button" class="btn btn-outline" data-action="preview">Abrir ↗</button></div>`:'<p class="hint">Abra pelo GitHub Pages para compartilhar o link desta reunião.</p>'}</section>
         <section class="card"><div class="summary"><div class="summary-icon">✓</div><div class="summary-copy"><p class="eyebrow" style="margin:0 0 4px;color:var(--green)">Melhor horário até agora</p><div class="summary-title">${esc(winner)}</div><div class="summary-sub">${esc(sub)}</div></div><span class="small muted">${plural(total,'resposta','respostas')}</span></div><div class="stats-row"><div class="stat-box"><span>Horários propostos</span><strong>${slots.length}</strong></div><div class="stat-box"><span>Pessoas que responderam</span><strong>${total}</strong></div><div class="stat-box"><span>Maior adesão</span><strong>${max}</strong></div></div></section>
-        <section class="results-section"><div class="section-header"><div><h2>Mapa de calor da equipe</h2><p class="hint">Compare os horários rapidamente e encontre os mais concorridos.</p></div></div>${makeHeatmap(slots,responses,state.heatWeekStart)}</section>
-        <section class="results-section card"><div class="section-header"><div><h2>Disponibilidade individual</h2><p class="hint">Veja a grade de cada pessoa, no mesmo formato usado para votar.</p></div></div>
+        <section class="results-section"><div class="section-header"><div><h2>Mapa de calor da equipe</h2><p class="hint">Disponibilidade por horário.</p></div></div>${makeHeatmap(slots,responses,state.heatWeekStart)}</section>
+        <section class="results-section card"><div class="section-header"><div><h2>Disponibilidade individual</h2><p class="hint">Selecione uma pessoa para consultar seus horários.</p></div></div>
           ${responses.length?`<div class="field"><label for="individual-person">Participante</label><select class="individual-picker" id="individual-person">${responses.map(r=>`<option value="${esc(responseName(r))}" ${responseName(r)===state.selectedPerson?'selected':''}>${esc(responseName(r))}</option>`).join('')}</select></div>`:''}
           ${individualCalendar(slots,individual,state.individualWeekStart)}
         </section>
-        <details class="details results-section"><summary>Ver classificação completa dos horários</summary><div class="table-wrap"><table><thead><tr><th>Dia e hora</th><th>Pessoas disponíveis</th><th>Proporção</th></tr></thead><tbody>${results.map(r=>{const pct=total?Math.round(r.count/total*100):0;return `<tr><td class="table-date">${esc(formatPrettySlot(r.label))}${max>0&&r.count===max?'<span class="best-tag">Mais votado</span>':''}</td><td class="vote-count">${r.count} de ${total}</td><td>${pct}%</td></tr>`;}).join('')}</tbody></table></div></details>`;
+        <details class="details results-section"><summary>Ver classificação completa dos horários</summary><div class="table-wrap"><table><thead><tr><th>Dia e horário</th><th>Pessoas disponíveis</th><th>Proporção</th></tr></thead><tbody>${results.map(r=>{const pct=total?Math.round(r.count/total*100):0;return `<tr><td class="table-date">${esc(formatPrettySlot(r.label))}${max>0&&r.count===max?'<span class="best-tag">Mais votado</span>':''}</td><td class="vote-count">${r.count} de ${total}</td><td>${pct}%</td></tr>`;}).join('')}</tbody></table></div></details>`;
     }
     function mobileCalendarScrollbar(){
       return `<div class="calendar-scrollbar">
@@ -843,7 +848,7 @@
       slider.value=max ? String(Math.round(wrap.scrollLeft/max*100)) : '0';
       const headers=[...wrap.querySelectorAll('.day-head')];
       const viewport=wrap.getBoundingClientRect();
-      const hourWidth=wrap.querySelector('.hour-head')?.getBoundingClientRect().width||84;
+      const hourWidth=wrap.querySelector('.hour-head')?.getBoundingClientRect().width||92;
       const left=viewport.left+Math.min(hourWidth,wrap.clientWidth);
       const visible=headers.map((el,i)=>({i,rect:el.getBoundingClientRect()}))
         .filter(({rect})=>rect.right>left+1 && rect.left<viewport.right-1).map(x=>x.i+1);
@@ -865,11 +870,12 @@
         <div class="calendar-hint"><span class="desktop-instruction">${esc(help)}</span><span class="mobile-instruction">${type==='individual'?'Deslize para os lados para consultar outros dias.':'Toque para marcar um horário; deslize para os lados para ver outros dias.'}</span></div>
         ${mobileCalendarControls()}
         ${mobileCalendarScrollbar()}
-        <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(day => `<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(hour => `<tr><th class="hour-label">${esc(hour)}</th>${days.map(day => {
+        <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Horário</th>${days.map(day => `<th class="day-head"><span class="top">${esc(formatWeekdayShort(day))}</span><span class="sub">${esc(formatShortDate(day))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(hour => `<tr><th class="hour-label">${esc(formatHourInterval(hour))}</th>${days.map(day => {
           const slot = slotLabel(day, hour);
           const selectable = isSelectable(slot);
           const active = activeSet.has(slot);
-          return `<td><button type="button" class="slot-btn ${selectable ? (active ? (['create','edit'].includes(type) ? 'active-create' : 'active-vote') : '') : 'unavailable'}" ${selectable ? (type === 'individual' ? `disabled aria-disabled="true"` : `data-slot="${esc(slot)}" data-grid="${esc(type)}" aria-pressed="${active ? 'true' : 'false'}"`) : 'disabled aria-disabled="true"'}>${selectable ? `<span class="dot">${active ? '✓' : '+'}</span>` : '—'}</button></td>`;
+          const label = `${formatPrettyDate(day)}, ${formatHourInterval(hour,true)}`;
+          return `<td><button type="button" class="slot-btn ${selectable ? (active ? (['create','edit'].includes(type) ? 'active-create' : 'active-vote') : '') : 'unavailable'}" ${selectable ? (type === 'individual' ? `disabled aria-disabled="true"` : `data-slot="${esc(slot)}" data-grid="${esc(type)}" aria-pressed="${active ? 'true' : 'false'}" aria-label="${esc(label)}"`) : 'disabled aria-disabled="true"'}>${selectable ? `<span class="dot">${active ? '✓' : '+'}</span>` : '—'}</button></td>`;
         }).join('')}</tr>`).join('')}</tbody></table></div>
       </div>`;
     }
@@ -1034,7 +1040,7 @@
         const payload = {title:state.draftTitle, description:state.draftDescription, privacy:state.draftPrivacy, slots:orderedSlots.map((label,i)=>({id:'s'+(i+1), label}))};
         const data = await createPoll(payload);
         const id = data.created_poll_id || data?.bootstrap?.active_poll?.id;
-        if (!id) throw new Error('A API não retornou o código da reunião.');
+        if (!id) throw new Error('Não foi possível concluir a criação. Tente novamente.');
         state.draftTitle = '';
         state.draftDescription = '';
         state.draftSlots = new Set();
@@ -1251,8 +1257,6 @@
         if(!b.disabled){ e.preventDefault(); closeReplacementConfirm(); }
       }
     });
-    // No celular, o navegador controla o gesto de rolagem. Somente um toque
-    // completo (click) altera o horário; arrastar o dedo não marca células.
     let pendingTouchSlot = null;
     let draggingScrollbar = null;
     function scrubCalendarScrollbar(slider, clientX){
