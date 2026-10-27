@@ -217,6 +217,22 @@
       .calendar-grid{min-width:650px}.calendar-footer{flex-direction:column;align-items:stretch}.calendar-footer .btn{width:100%}
       th,td{padding:13px 12px}
     }
+    .home-hero{text-align:center;max-width:730px;margin:40px auto 38px}
+    .home-mark{display:grid;place-items:center;width:60px;height:60px;border-radius:16px;background:var(--blue-soft);color:var(--blue);margin:0 auto 17px;font-size:28px}
+    .home-choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:720px;margin:0 auto}
+    .choice-card{border:1px solid var(--line);background:#fff;padding:24px;border-radius:15px;text-align:left;min-height:150px;display:flex;flex-direction:column;gap:9px}
+    .choice-card:hover{border-color:#9eb5f9;background:#fbfcff}
+    .choice-card strong{font-size:17px}.choice-card span{color:var(--muted);font-size:13px}
+    .private-choice{display:flex;gap:12px;align-items:flex-start;padding:13px 15px;border:1px solid var(--line);border-radius:11px;margin:9px 0;cursor:pointer}
+    .private-choice input{width:19px;height:19px;margin:2px 0 0;accent-color:var(--blue)}
+    .private-choice label{margin:0;cursor:pointer}
+    .secret-code{font-size:clamp(15px,3.5vw,20px);font-weight:780;letter-spacing:.055em;overflow-wrap:anywhere;background:#f5f8ff;border:1px dashed #becdf0;border-radius:11px;padding:15px}
+    .inline-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+    .result-days{display:grid;gap:9px;margin-top:13px}
+    .result-day{border:1px solid #d8eae1;background:#f1faf6;border-radius:11px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .badge-status{font-size:12px;padding:4px 9px;border-radius:20px;background:#edf3ff;color:#3159d9;font-weight:740}
+    .badge-status.closed{color:#20674e;background:#e8f6ed}
+    @media(max-width:600px){.home-choices{grid-template-columns:1fr}.home-hero{margin:15px auto 28px}.choice-card{min-height:105px;padding:19px}}
   </style>
 </head>
 <body>
@@ -276,6 +292,12 @@
     let route = routeFromUrl();
     let toastTimer;
     const AUTH_KEY = 'diacerto_admin_session_v1';
+    const OWNER_KEY = 'diacerto_owner_session_v1';
+    const PARTICIPANT_PREFIX = 'diacerto_private_session_';
+    let ownerSession = (()=>{try{return JSON.parse(sessionStorage.getItem(OWNER_KEY)||'null');}catch(_){return null;}})();
+    let ownerAuthenticated = false;
+    let managerError = '';
+    let adminArchives = false;
     let adminToken = sessionStorage.getItem(AUTH_KEY) || '';
     let adminAuthenticated = false;
     let loginError = '';
@@ -287,6 +309,10 @@
       responses:[],
       draftTitle:'',
       draftDescription:'',
+      draftPrivacy:'public',
+      created:null,
+      publicResults:null,
+      participantAccessToken:'',
       draftSlots:new Set(),
       draftWeekStart:getWeekStart(todayIso()),
       person:'',
@@ -310,16 +336,17 @@
     };
 
     function routeFromUrl(){
-      const p = new URLSearchParams(currentRouteQuery());
-      const participantId = p.get('id');
-      if (participantId && p.get('admin') !== '1') return {page:'participant', id:participantId};
-      return {page:p.get('view') === 'create' ? 'create' : p.get('poll') ? 'results' : 'home', id:p.get('poll') || ''};
+      const p=new URLSearchParams(currentRouteQuery());
+      if(p.get('id'))return {page:'participant',id:p.get('id')};
+      if(p.get('poll'))return {page:'results',id:p.get('poll')};
+      const view=p.get('view')||((p.get('admin')==='1')?'admin':'home');
+      return {page:['home','create','created','manage','admin','admin-login'].includes(view)?view:'home',id:''};
     }
-    function managerUrl(page='home', id=''){
-      const p = new URLSearchParams({admin:'1'});
-      if (page === 'results' && id) p.set('poll', id);
-      if (page === 'create') p.set('view', page);
-      return `${location.pathname}?${p.toString()}`;
+    function managerUrl(page='home',id=''){
+      const p=new URLSearchParams();
+      if(page==='results')p.set('poll',id);
+      else if(page!=='home')p.set('view',page);
+      return location.pathname+(p.toString()?'?'+p.toString():'');
     }
     function participantUrl(id){
       const u = new URL(window.location.href);
@@ -481,32 +508,32 @@
       return json.data;
     }
     async function bootstrap(id=''){
-      if(route.page === 'participant') {
-        return gas ? rpc('getParticipantPoll',id) : apiRequest('public_poll',{id},'GET');
+      if(route.page==='participant'){
+        return gas?rpc('getParticipantPoll',id,state.participantAccessToken):apiRequest('public_poll',{id,access_token:state.participantAccessToken});
       }
-      if(!adminAuthenticated) throw new Error('Acesso administrativo não autorizado.');
-      return gas ? rpc('getBootstrap',adminToken,id) : apiRequest('admin_bootstrap',{token:adminToken,poll_id:id});
+      if(route.page==='admin'){
+        if(!adminAuthenticated)throw new Error('Entre como administrador.');
+        return gas?rpc('getBootstrap',adminToken,id):apiRequest('admin_bootstrap',{token:adminToken,poll_id:id});
+      }
+      if(route.page==='results'){
+        if(adminAuthenticated)return gas?rpc('getBootstrap',adminToken,id):apiRequest('admin_bootstrap',{token:adminToken,poll_id:id});
+        if(ownerAuthenticated&&ownerSession?.id===id)return gas?rpc('getManagerBootstrap',ownerSession.token,id):apiRequest('manager_bootstrap',{token:ownerSession.token,poll_id:id});
+      }
+      throw new Error('Acesso de gerenciamento não autorizado.');
     }
-    async function createPoll(payload){
-      if(!adminAuthenticated) throw new Error('Entre com a senha da planilha.');
-      return gas ? rpc('createPoll',payload,adminToken) : apiRequest('create_poll',{token:adminToken,payload});
-    }
-    async function saveVote(payload){
-      return gas ? rpc('saveVote',payload) : apiRequest('save_vote',{payload});
-    }
-    async function updatePollSlots(payload){
-      if (!adminAuthenticated) throw new Error('Entre novamente para editar a reunião.');
-      return gas ? rpc('updatePollSlots',payload,adminToken) : apiRequest('update_poll_slots',{token:adminToken,payload});
-    }
-    async function loginRequest(password){
-      return gas ? rpc('adminLogin',password) : apiRequest('admin_login',{password});
-    }
-    async function sessionValidRequest(token){
-      return gas ? rpc('adminSessionValid',token) : apiRequest('admin_check',{token});
-    }
-    async function logoutRequest(token){
-      return gas ? rpc('adminLogout',token) : apiRequest('admin_logout',{token});
-    }
+    async function createPoll(payload){return gas?rpc('createPoll',payload,''):apiRequest('create_poll',{payload});}
+    async function saveVote(payload){return gas?rpc('saveVote',payload,state.participantAccessToken):apiRequest('save_vote',{payload,access_token:state.participantAccessToken});}
+    function currentManagementToken(){return adminAuthenticated?adminToken:ownerAuthenticated?ownerSession?.token||'':'';}
+    async function updatePollSlots(payload){const token=currentManagementToken();return gas?rpc('updatePollSlots',payload,token):apiRequest('update_poll_slots',{token,payload});}
+    async function loginRequest(password){return gas?rpc('adminLogin',password):apiRequest('admin_login',{password});}
+    async function sessionValidRequest(token){return gas?rpc('adminSessionValid',token):apiRequest('admin_check',{token});}
+    async function logoutRequest(token){return gas?rpc('adminLogout',token):apiRequest('admin_logout',{token});}
+    async function ownerLoginRequest(code){return gas?rpc('managerLogin',code):apiRequest('manager_login',{code});}
+    async function ownerCheckRequest(token,id){return gas?rpc('managerSessionValid',token,id):apiRequest('manager_check',{token,poll_id:id});}
+    async function participantUnlock(id,pin){return gas?rpc('unlockParticipant',id,pin):apiRequest('participant_unlock',{id,pin});}
+    async function setStatus(status){const id=state.poll.id,token=currentManagementToken();return gas?rpc('setPollStatus',id,status,token):apiRequest('set_poll_status',{poll_id:id,status,token});}
+    async function archiveRequest(id,archived){return gas?rpc('archivePoll',id,archived,adminToken):apiRequest('archive_poll',{poll_id:id,archived,token:adminToken});}
+    async function deleteRequest(id){return gas?rpc('deletePoll',id,adminToken):apiRequest('delete_poll',{poll_id:id,token:adminToken});}
     function showToast(msg){
       const node = document.getElementById('toast-container');
       node.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
@@ -514,38 +541,30 @@
       toastTimer = setTimeout(()=>node.innerHTML='', 3600);
     }
     function renderTop(){
-      if (route.page === 'participant') {
-        topActions.innerHTML = '<span class="top-note">Sua disponibilidade</span>';
-        document.getElementById('brand-link').href = '#';
-      } else {
-        topActions.innerHTML = adminAuthenticated
-          ? '<span class="top-note">Área do gestor</span><button class="btn btn-outline" type="button" data-action="logout">Sair</button>'
-          : '<span class="top-note">Área restrita</span>';
-        document.getElementById('brand-link').href = managerUrl();
-      }
+      const onParticipant=route.page==='participant';
+      const role=adminAuthenticated?'Administrador geral':ownerAuthenticated?'Organizador':'DiaCerto';
+      topActions.innerHTML=onParticipant?'<span class="top-note">Disponibilidade da equipe</span>':
+        `<span class="top-note">${role}</span>${(adminAuthenticated||ownerAuthenticated)?'<button class="btn btn-outline" type="button" data-action="logout">Sair</button>':''}`;
+      document.getElementById('brand-link').href=managerUrl('home');
     }
     function render(){
       renderTop();
-      app.classList.toggle('narrow', route.page === 'participant' || !adminAuthenticated);
-      if (route.page !== 'participant' && !adminAuthenticated) {
-        renderLogin();
-        return;
-      }
-      if (state.loading) {
-        app.innerHTML = '<div class="loading">Carregando reunião...</div>';
-        return;
-      }
-      if (state.error) {
-        app.innerHTML = `<section class="card setting-box"><h1>Não foi possível carregar</h1><p class="lead">${esc(state.error)}</p><button class="btn btn-primary" data-action="retry" style="margin-top:20px">Tentar novamente</button></section>`;
-        return;
-      }
-      if (route.page === 'participant') renderParticipant();
-      else if (route.page === 'create') renderCreate();
-      else if (route.page === 'results') renderResults();
+      app.classList.toggle('narrow',['participant','manage','admin-login','created'].includes(route.page));
+      if(route.page==='admin-login'&&!adminAuthenticated){renderLogin();return;}
+      if(route.page==='admin'&&!adminAuthenticated){renderLogin();return;}
+      if(route.page==='results'&&!adminAuthenticated&&!(ownerAuthenticated&&ownerSession?.id===route.id)){renderManagerLogin();return;}
+      if(state.loading){app.innerHTML='<div class="loading">Carregando...</div>';return;}
+      if(state.error){app.innerHTML=`<section class="card setting-box"><h1>Não foi possível carregar</h1><p class="lead">${esc(state.error)}</p><button class="btn btn-primary" data-action="retry" style="margin-top:20px">Tentar novamente</button></section>`;return;}
+      if(route.page==='participant')renderParticipant();
+      else if(route.page==='create')renderCreate();
+      else if(route.page==='created')renderCreated();
+      else if(route.page==='results')renderResults();
+      else if(route.page==='admin')renderAdminHome();
+      else if(route.page==='manage')renderManagerLogin();
       else renderHome();
     }
     function renderLogin(){
-      app.innerHTML = `<div class="heading"><div class="heading-copy"><p class="eyebrow">Área restrita</p><h1>Acesso do gestor</h1><p class="lead">Informe sua senha para criar reuniões e consultar os resultados.</p></div></div>
+      app.innerHTML = `<div class="heading"><div class="heading-copy"><p class="eyebrow">Área restrita</p><h1>Acesso do gestor</h1><p class="lead">Use a senha geral para consultar e administrar todas as reuniões.</p></div></div>
         <form id="login-form" class="card setting-box">
           ${loginError ? `<div class="notice notice-error" role="alert">${esc(loginError)}</div>` : ''}
           <div class="field"><label for="admin-password">Senha administrativa</label><input type="password" id="admin-password" required autocomplete="current-password" placeholder="Digite sua senha" /></div>
@@ -565,7 +584,7 @@
         sessionStorage.setItem(AUTH_KEY, adminToken);
         adminAuthenticated = true;
         loginError = '';
-        await load();
+        navigate('admin');
       } catch (e) {
         loginError = e?.message || 'Não foi possível entrar.';
         adminAuthenticated = false;
@@ -575,42 +594,75 @@
       }
     }
     function logout(){
-      const oldToken = adminToken;
-      adminToken = '';
-      adminAuthenticated = false;
-      sessionStorage.removeItem(AUTH_KEY);
-      loginError = '';
-      state.poll = null;
-      state.responses = [];
-      state.polls = [];
+      const adminOld=adminToken;
+      const ownerOld=ownerSession?.token;
+      adminToken='';adminAuthenticated=false;ownerAuthenticated=false;ownerSession=null;
+      sessionStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(OWNER_KEY);
+      state.poll=null;state.responses=[];state.polls=[];loginError='';managerError='';
       navigate('home');
-      if (oldToken) logoutRequest(oldToken).catch(()=>{});
+      if(adminOld)logoutRequest(adminOld).catch(()=>{});
+      if(ownerOld)(gas?rpc('managerLogout',ownerOld):apiRequest('manager_logout',{token:ownerOld})).catch(()=>{});
     }
     async function boot(){
-      if(route.page === 'participant') return load();
-      if(adminToken){
-        try {adminAuthenticated = Boolean(await sessionValidRequest(adminToken));}
-        catch(_) {adminAuthenticated = false;}
-        if(!adminAuthenticated){
-          sessionStorage.removeItem(AUTH_KEY);
-          adminToken = '';
-        }
+      if(route.page==='participant'){
+        state.participantAccessToken=sessionStorage.getItem(PARTICIPANT_PREFIX+route.id)||'';
+        return load();
       }
-      if(adminAuthenticated) await load();
-      else {state.loading=false;render();}
+      if(['home','create','created','manage'].includes(route.page)){state.loading=false;render();return;}
+      if(adminToken){
+        try{adminAuthenticated=Boolean(await sessionValidRequest(adminToken));}catch(_){adminAuthenticated=false;}
+        if(!adminAuthenticated){adminToken='';sessionStorage.removeItem(AUTH_KEY);}
+      }
+      if(!adminAuthenticated&&ownerSession?.token){
+        try{ownerAuthenticated=Boolean(await ownerCheckRequest(ownerSession.token,ownerSession.id));}catch(_){ownerAuthenticated=false;}
+        if(!ownerAuthenticated){ownerSession=null;sessionStorage.removeItem(OWNER_KEY);}
+      }
+      if((route.page==='admin'&&adminAuthenticated)||(route.page==='results'&&(adminAuthenticated||(ownerAuthenticated&&ownerSession?.id===route.id))))await load();
+      else{state.loading=false;render();}
     }
     function renderHome(){
-      const list = state.polls || [];
-      app.innerHTML = `
-        <div class="heading"><div class="heading-copy"><p class="eyebrow">Painel do gestor</p><h1>Encontre o melhor horário<br>para a sua equipe.</h1><p class="lead">Crie uma reunião, selecione os horários em uma grade semanal e compartilhe o link para que todos marquem quando podem participar.</p></div><button class="btn btn-primary" data-action="new">+ Nova reunião</button></div>
-        <div class="section-header"><h2>Minhas reuniões</h2><span class="small muted">${plural(list.length,'reunião','reuniões')}</span></div>
-        <div class="card tight">${list.length ? list.map(p => `<div class="list-item"><div class="stack"><h3>${esc(p.title)}</h3><p>${plural(p.slot_count != null ? p.slot_count : 0,'horário proposto','horários propostos')}${p.response_count != null ? ' · ' + plural(p.response_count,'resposta','respostas') : ''}</p></div><button type="button" class="btn btn-outline" data-action="results" data-id="${esc(p.id)}">Ver resultados →</button></div>`).join('') : `<div class="empty"><div class="empty-icon" aria-hidden="true">▦</div><h2>Nenhuma reunião por enquanto</h2><p>Comece selecionando os horários possíveis para o encontro.</p><button class="btn btn-primary" data-action="new">Criar minha primeira reunião</button></div>`}</div>`;
+      app.innerHTML=`<section class="home-hero"><div class="home-mark">▦</div><p class="eyebrow">DiaCerto</p><h1>Encontre o melhor horário para sua equipe.</h1><p class="lead" style="margin:15px auto 0">Proponha horários, compartilhe a reunião e descubra quando mais pessoas podem participar. Sem cadastro.</p></section>
+        <div class="home-choices">
+          <button type="button" class="choice-card" data-action="new"><strong>+ Criar reunião</strong><span>Selecione os horários e receba um código exclusivo de gerenciamento.</span></button>
+          <button type="button" class="choice-card" data-action="manage"><strong>🔑 Gerenciar reunião</strong><span>Já organizou uma reunião? Entre com o código que recebeu.</span></button>
+        </div>
+        <div style="text-align:center;margin-top:32px"><button class="btn btn-text" data-action="admin-login">Acesso administrativo</button></div>`;
+    }
+    function renderAdminHome(){
+      const list=(state.polls||[]).filter(p=>Boolean(p.archived)===adminArchives);
+      app.innerHTML=`<div class="heading"><div><p class="eyebrow">Administrador geral</p><h1>Todas as reuniões</h1><p class="lead">Acompanhe as votações, organize as antigas e gerencie qualquer reunião.</p></div><button class="btn btn-primary" data-action="new">+ Nova reunião</button></div>
+      <div class="section-header"><h2>${adminArchives?'Reuniões arquivadas':'Reuniões ativas'}</h2><button class="btn btn-outline" data-action="toggle-archives">${adminArchives?'Ver ativas':'Ver arquivadas'}</button></div>
+      <div class="card tight">${list.length?list.map(p=>`<div class="list-item"><div class="stack"><h3>${esc(p.title)} <span class="badge-status ${p.status==='closed'?'closed':''}">${p.status==='closed'?'Encerrada':'Aberta'}</span></h3><p>${plural(p.response_count||0,'resposta','respostas')} · ${p.privacy==='private'?'PIN necessário':'Acesso pelo link'}</p></div><div class="inline-actions"><button class="btn btn-outline" data-action="results" data-id="${esc(p.id)}">Gerenciar</button><button class="btn btn-soft" data-action="archive" data-id="${esc(p.id)}" data-archived="${p.archived?'false':'true'}">${p.archived?'Restaurar':'Arquivar'}</button><button class="btn btn-text" style="color:var(--red)" data-action="delete" data-id="${esc(p.id)}">Excluir</button></div></div>`).join(''):'<div class="empty"><h2>Nenhuma reunião nesta lista</h2></div>'}</div>`;
+    }
+    function renderManagerLogin(){
+      app.innerHTML=`<button class="back" data-action="home">← Início</button><div class="heading"><div><p class="eyebrow">Organizador</p><h1>Gerenciar reunião</h1><p class="lead">Informe o código exclusivo recebido ao criar sua reunião.</p></div></div>
+        <form class="card setting-box" id="manager-form">${managerError?`<div class="notice notice-error">${esc(managerError)}</div>`:''}<div class="field"><label for="manager-code">Código de gerenciamento</label><input type="text" id="manager-code" required placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" /></div><button type="submit" class="btn btn-primary full" id="manager-submit">Acessar reunião →</button><p class="hint">Este código foi mostrado uma única vez na criação. Sem ele, não é possível recuperar o acesso de organizador.</p></form>`;
+    }
+    async function submitManagerLogin(form){
+      const btn=form.querySelector('#manager-submit');btn.disabled=true;btn.textContent='Verificando...';
+      try{
+        const result=await ownerLoginRequest(form.querySelector('#manager-code').value);
+        ownerSession={token:result.token,id:result.poll_id};ownerAuthenticated=true;managerError='';
+        sessionStorage.setItem(OWNER_KEY,JSON.stringify(ownerSession));
+        navigate('results',ownerSession.id);
+      }catch(e){managerError=e.message||'Código inválido.';renderManagerLogin();}
+    }
+    function renderCreated(){
+      const d=state.created;
+      if(!d){app.innerHTML='<div class="card"><h2>O código só é exibido após criar a reunião.</h2><button class="btn btn-primary" data-action="home">Voltar ao início</button></div>';return;}
+      const url=participantUrl(d.created_poll_id);
+      app.innerHTML=`<div class="card setting-box"><p class="eyebrow">Reunião criada</p><h1>Pronto! Guarde seu código.</h1><p class="lead" style="margin-bottom:20px">Ele é a única maneira de voltar a gerenciar esta reunião. Não será mostrado novamente.</p>
+        <label>Código de gerenciamento — não compartilhe com participantes</label><div class="secret-code" id="created-code">${esc(d.manager_code)}</div><div class="inline-actions"><button class="btn btn-outline" data-action="copy-manager">Copiar código</button><button class="btn btn-outline" data-action="copy-manage-text">Copiar instruções para guardar</button></div>
+        <hr class="divider"/><label>Link para os participantes</label><div class="share"><input readonly id="created-link" value="${esc(url)}" /><button class="btn btn-primary" data-action="copy-invite">Copiar convite</button></div>
+        ${d.participant_pin?`<p class="hint" style="margin-top:16px">PIN da votação privada (compartilhe com os participantes):</p><div class="secret-code">${esc(d.participant_pin)}</div>`:''}
+        <div class="notice" style="margin-top:20px"><strong>Importante:</strong> guarde o código de gerenciamento agora. O DiaCerto não tem recuperação de código.</div>
+        <div class="inline-actions"><button class="btn btn-primary" data-action="created-manage">Gerenciar agora →</button><button class="btn btn-outline" data-action="home">Voltar ao início</button></div></div>`;
     }
     function renderCreate(){
       const weekStart = state.draftWeekStart;
       const weekDays = rangeDays(weekStart, VISIBLE_DAYS);
-      app.innerHTML = `<button class="back" data-action="home">← Minhas reuniões</button>
-        <div class="heading"><div class="heading-copy"><p class="eyebrow">Painel do gestor</p><h1>Criar reunião</h1><p class="lead">Dê um nome ao encontro e selecione na grade os horários que podem entrar na votação.</p></div></div>
+      app.innerHTML = `<button class="back" data-action="home">← Início</button>
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Nova reunião</p><h1>Criar reunião</h1><p class="lead">Dê um nome ao encontro e selecione na grade os horários que podem entrar na votação.</p></div></div>
         <form id="create-form" class="card">
           <div class="field"><label for="meeting-title">Nome da reunião *</label><input id="meeting-title" type="text" maxlength="120" required placeholder="Ex.: Reunião de planejamento" value="${esc(state.draftTitle)}"></div>
           <div class="field"><label for="meeting-desc">Observações <span class="muted" style="font-weight:400">(opcional)</span></label><textarea id="meeting-desc" maxlength="350" placeholder="Ex.: Preferência por horários da manhã, reunião de 1 hora.">${esc(state.draftDescription)}</textarea></div>
@@ -629,6 +681,10 @@
               clearLabel:'Limpar seleção',
             })}
           </div>
+          <div class="field" style="margin-top:22px"><label class="field-label">Acesso dos participantes</label>
+            <div class="private-choice"><input id="privacy-public" type="radio" name="privacy" value="public" ${state.draftPrivacy==='public'?'checked':''}><label for="privacy-public"><strong>Qualquer pessoa com o link</strong><br><span class="hint">Acesso direto à votação e, depois, aos resultados gerais.</span></label></div>
+            <div class="private-choice"><input id="privacy-private" type="radio" name="privacy" value="private" ${state.draftPrivacy==='private'?'checked':''}><label for="privacy-private"><strong>Protegida por PIN</strong><br><span class="hint">O sistema gera um PIN de seis dígitos para quem for participar.</span></label></div>
+          </div>
           <div class="calendar-footer"><span class="selection-count">${plural(state.draftSlots.size,'horário selecionado','horários selecionados')}</span><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-outline" type="button" data-action="home">Cancelar</button><button class="btn btn-primary" type="submit" id="create-submit">Criar reunião e gerar link →</button></div></div>
         </form>`;
     }
@@ -638,6 +694,11 @@
         app.innerHTML = '<section class="card"><h1>Reunião não encontrada</h1><p class="lead">Verifique se o link está correto.</p></section>';
         return;
       }
+      if(poll.locked){
+        app.innerHTML=`<div class="heading"><div><p class="eyebrow">Votação privada</p><h1>Informe o PIN da reunião</h1><p class="lead">Use o PIN recebido junto com o link para acessar esta votação.</p></div></div><form class="card" id="pin-form"><div class="field"><label for="participant-pin">PIN de participação</label><input type="text" id="participant-pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code" placeholder="000000"></div><button class="btn btn-primary full" type="submit">Entrar na reunião →</button></form>`;
+        return;
+      }
+      if(poll.status==='closed'){renderPublicResults();return;}
       const slots = pollSlots(poll);
       const weeks = proposedVoteWeeks(slots);
       const weekStart = weeks.some(w=>w.start===state.participantWeekStart)
@@ -671,6 +732,26 @@
           <p class="hint">Cada marcação representa um período de 1 hora.</p>
         </form>
         <p class="tiny-note">Suas respostas serão enviadas ao organizador da reunião.</p>`;
+    }
+    function renderPublicResults(){
+      const p=state.poll,slots=pollSlots(p),data=state.publicResults||{total:0,counts:{}};
+      const dayBest=new Map();
+      slots.forEach(s=>{const day=splitSlot(s).date, count=Number(data.counts[s]||0);dayBest.set(day,Math.max(dayBest.get(day)||0,count));});
+      const ranked=[...dayBest].map(([date,count])=>({date,count})).sort((a,b)=>b.count-a.count||a.date.localeCompare(b.date));
+      const top=ranked[0]?.count||0;
+      const winners=ranked.filter(x=>x.count===top&&top>0);
+      const best=top>0?`<div class="result-days">${winners.map(d=>`<div class="result-day"><strong>${esc(formatPrettyDate(d.date))}</strong><span>${d.count} de ${data.total} pessoas</span></div>`).join('')}</div>`:'<p class="hint">Nenhuma disponibilidade marcada. Consulte o mapa de calor abaixo.</p>';
+      // Os nomes não são enviados ao público; apenas as contagens por horário.
+      const start=state.heatWeekStart||resultWeekBounds(slots).first;
+      app.innerHTML=`<div class="heading"><div><p class="eyebrow">Votação encerrada</p><h1>${esc(p.title)}</h1><p class="lead">Resultado consolidado · ${plural(data.total,'participante','participantes')} responderam</p></div><span class="badge-status closed">Encerrada</span></div>
+      <section class="card"><h2>Melhores dias</h2><p class="hint">Dias com mais pessoas disponíveis no mesmo horário. Em caso de empate, todos os melhores aparecem.</p>${best}</section>
+      <section class="card"><h2>Mapa de calor da disponibilidade</h2><p class="hint">Cada célula mostra a quantidade de pessoas disponíveis. Nenhuma resposta individual é exibida.</p>${makePublicHeatmap(slots,data,start)}</section>`;
+    }
+    function makePublicHeatmap(slots,data,weekStart){
+      const days=rangeDays(weekStart,VISIBLE_DAYS),set=new Set(slots),total=data.total||0;
+      const counts=data.counts||{},bounds=resultWeekBounds(slots);
+      return `<div class="calendar-shell"><div class="calendar-toolbar"><strong>Semana de ${esc(formatRange(weekStart,VISIBLE_DAYS))}</strong><div class="calendar-actions"><button class="btn btn-outline" data-action="heat-prev-week" ${weekStart<=bounds.first?'disabled':''}>← Anterior</button><button class="btn btn-outline" data-action="heat-next-week" ${weekStart>=bounds.last?'disabled':''}>Próxima →</button></div></div>${mobileCalendarControls()}${mobileCalendarScrollbar()}
+      <div class="calendar-wrap"><table class="calendar-grid"><thead><tr><th class="hour-head">Hora</th>${days.map(d=>`<th class="day-head"><span class="top">${esc(formatWeekdayShort(d))}</span><span class="sub">${esc(formatShortDate(d))}</span></th>`).join('')}</tr></thead><tbody>${HOURS.map(h=>`<tr><th class="hour-label">${h}</th>${days.map(d=>{const slot=slotLabel(d,h);if(!set.has(slot))return '<td><span class="heat-slot heat-0">—</span></td>';const n=Number(counts[slot]||0),level=total?Math.ceil(n/total*5):0;return `<td><span class="heat-slot heat-${level}">${n}${total?' / '+total:''}</span></td>`;}).join('')}</tr>`).join('')}</tbody></table></div></div><div class="heat-legend">Mais escuro = mais pessoas disponíveis</div>`;
     }
     function resultWeekBounds(slots) {
       const dates = slots.map(s=>splitSlot(s).date).filter(Boolean).sort();
@@ -734,8 +815,8 @@
         isSelectable:()=>true,headline:`Semana de ${formatRange(state.editWeekStart,VISIBLE_DAYS)}`,
         help:'Clique ou arraste para incluir ou remover horários da reunião. Use as setas para outras semanas.',
         prevAction:'edit-prev-week',nextAction:'edit-next-week',clearAction:'edit-clear-week',clearLabel:'Limpar semana'}):'';
-      app.innerHTML=`<button class="back" data-action="home">← Minhas reuniões</button>
-        <div class="heading"><div class="heading-copy"><p class="eyebrow">Resultados da reunião</p><h1>${esc(p.title)}</h1><p class="lead">${esc(p.description||'Veja qual horário permite a presença de mais pessoas.')}</p></div><div style="display:flex;gap:9px;flex-wrap:wrap"><button type="button" class="btn btn-outline" data-action="refresh">↻ Atualizar</button><button type="button" class="btn ${state.editOpen?'btn-soft':'btn-primary'}" data-action="${state.editOpen?'edit-cancel':'edit-start'}">${state.editOpen?'Cancelar edição':'Editar horários'}</button></div></div>
+      app.innerHTML=`<button class="back" data-action="${adminAuthenticated?'admin':'home'}">← ${adminAuthenticated?'Todas as reuniões':'Início'}</button>
+        <div class="heading"><div class="heading-copy"><p class="eyebrow">Gerenciamento da reunião <span class="badge-status ${p.status==='closed'?'closed':''}">${p.status==='closed'?'Encerrada':'Aberta'}</span></p><h1>${esc(p.title)}</h1><p class="lead">${esc(p.description||'Veja qual horário permite a presença de mais pessoas.')}</p></div><div style="display:flex;gap:9px;flex-wrap:wrap"><button type="button" class="btn btn-outline" data-action="refresh">↻ Atualizar</button><button type="button" class="btn ${p.status==='closed'?'btn-soft':'btn-primary'}" data-action="toggle-status">${p.status==='closed'?'Reabrir votação':'Encerrar votação'}</button><button type="button" class="btn ${state.editOpen?'btn-soft':'btn-primary'}" data-action="${state.editOpen?'edit-cancel':'edit-start'}" ${p.status==='closed'?'disabled title="Reabra a votação para editar"':''}>${state.editOpen?'Cancelar edição':'Editar horários'}</button></div></div>
         ${state.editOpen?`<section class="card"><div class="section-header"><div><h2>Editar horários permitidos</h2><p class="hint">As alterações só serão aplicadas ao clicar em Salvar.</p></div></div>${editable}
           ${removed.length?`<p class="editing-warning"><strong>Atenção:</strong> ${plural(removed.length,'horário será removido','horários serão removidos')}. ${plural(impacted,'participante terá','participantes terão')} essas marcações apagadas das respostas.</p>`:''}
           <div class="calendar-footer"><span class="selection-count">${plural(state.editSlots.size,'horário selecionado','horários selecionados')}</span><div style="display:flex;gap:9px;flex-wrap:wrap"><button type="button" class="btn btn-outline" data-action="edit-cancel">Cancelar</button><button type="button" class="btn btn-primary" data-action="edit-save" ${state.editSaving?'disabled':''}>${state.editSaving?'Salvando...':'Salvar alterações'}</button></div></div></section>`:''}
@@ -810,47 +891,43 @@
       if (d) state.draftDescription = d.value;
     }
     async function load(){
-      if (route.page !== 'participant' && !adminAuthenticated) { state.loading=false; render(); return; }
-      state.loading = true;
-      state.error = '';
-      render();
+      if(!['participant','admin','results'].includes(route.page)){state.loading=false;render();return;}
+      if(route.page==='admin'&&!adminAuthenticated){state.loading=false;render();return;}
+      if(route.page==='results'&&!adminAuthenticated&&!(ownerAuthenticated&&ownerSession?.id===route.id)){state.loading=false;render();return;}
+      state.loading=true;state.error='';render();
       try{
-        const data = await bootstrap(route.id || '');
-        state.polls = data.polls_summary || [];
-        state.poll = data.active_poll || null;
-        if(route.page==='results' && state.poll){
-          const currentId=state.poll.id;
-          if(state.lastResultsId!==currentId){
-            const first=resultWeekBounds(pollSlots(state.poll)).first;
-            state.heatWeekStart=first;state.individualWeekStart=first;state.editWeekStart=first;
-            state.editOpen=false;state.lastResultsId=currentId;state.selectedPerson='';
-          }
+        const data=await bootstrap(route.id||'');
+        state.polls=data.polls_summary||[];
+        state.poll=data.active_poll||null;
+        state.responses=data.active_responses||[];
+        state.publicResults=data.results||null;
+        if(route.page==='results'&&state.poll&&state.lastResultsId!==state.poll.id){
+          const first=resultWeekBounds(pollSlots(state.poll)).first;
+          state.heatWeekStart=first;state.individualWeekStart=first;state.editWeekStart=first;
+          state.editOpen=false;state.lastResultsId=state.poll.id;state.selectedPerson='';
         }
-        state.responses = data.active_responses || [];
-        if (route.page === 'participant') restoreMyAnswer(route.id);
-        state.loading = false;
-        render();
+        if(route.page==='participant'&&state.poll&&!state.poll.locked&&state.poll.status==='open')restoreMyAnswer(route.id);
+        if(route.page==='participant'&&state.poll&&state.poll.status==='closed'&&!state.heatWeekStart)state.heatWeekStart=resultWeekBounds(pollSlots(state.poll)).first;
+        state.loading=false;render();
       }catch(e){
-        state.loading = false;
-        const msg = e?.message || 'Verifique sua conexão.';
-        if (route.page !== 'participant' && /Sessão expirada|não autorizado/i.test(msg)) {
-          adminAuthenticated = false;
-          adminToken = '';
-          sessionStorage.removeItem(AUTH_KEY);
-          loginError = 'Sua sessão expirou. Entre novamente.';
-        } else state.error = msg;
+        state.loading=false;
+        const msg=e?.message||'Erro na conexão.';
+        if(route.page==='results'&&/Sessão|não autorizado|código de gerenciamento/i.test(msg)){
+          ownerAuthenticated=false;ownerSession=null;sessionStorage.removeItem(OWNER_KEY);
+          adminAuthenticated=false;adminToken='';sessionStorage.removeItem(AUTH_KEY);
+          managerError='Sua sessão expirou. Informe o código novamente.';
+        }else state.error=msg;
         render();
       }
     }
     function navigate(page,id=''){
-      if (route.page === 'create') saveDraft();
-      const url = managerUrl(page,id);
-      virtualRouteQuery = url.slice(url.indexOf('?') + 1);
-      try { history.pushState({q:virtualRouteQuery}, '', `#?${virtualRouteQuery}`); }
-      catch (_) { location.hash = '?' + virtualRouteQuery; }
-      route = routeFromUrl();
-      if (page === 'results') load();
-      else { state.error=''; state.loading=false; render(); }
+      if(route.page==='create')saveDraft();
+      const url=managerUrl(page,id);
+      virtualRouteQuery=url.includes('?')?url.slice(url.indexOf('?')+1):'';
+      try{history.pushState({q:virtualRouteQuery},'',url);}catch(_){location.hash='?'+virtualRouteQuery;}
+      route=routeFromUrl();state.error='';
+      if(page==='results'||page==='admin')load();
+      else{state.loading=false;render();}
     }
     function leaveForVote(){
       const link = participantUrl(state.poll.id);
@@ -954,7 +1031,7 @@
       btn.disabled = true; btn.textContent = 'Criando...';
       try{
         const orderedSlots = [...state.draftSlots].sort();
-        const payload = {title:state.draftTitle, description:state.draftDescription, slots:orderedSlots.map((label,i)=>({id:'s'+(i+1), label})), locations:[]};
+        const payload = {title:state.draftTitle, description:state.draftDescription, privacy:state.draftPrivacy, slots:orderedSlots.map((label,i)=>({id:'s'+(i+1), label}))};
         const data = await createPoll(payload);
         const id = data.created_poll_id || data?.bootstrap?.active_poll?.id;
         if (!id) throw new Error('A API não retornou o código da reunião.');
@@ -962,8 +1039,9 @@
         state.draftDescription = '';
         state.draftSlots = new Set();
         state.draftWeekStart = getWeekStart(todayIso());
-        navigate('results', id);
-        showToast('Reunião criada! O link está pronto para compartilhar.');
+        state.created=data;
+        navigate('created');
+        showToast('Reunião criada. Guarde o código de gerenciamento.');
       }catch(e){
         showToast('Não foi possível criar: ' + (e.message || e));
         btn.disabled = false; btn.textContent = 'Criar reunião e gerar link →';
@@ -1105,12 +1183,24 @@
       if (action === 'replace-cancel') { closeReplacementConfirm(); return; }
       if (action === 'replace-confirm') { confirmReplacement(); return; }
       if (action === 'new') { navigate('create'); return; }
+      if (action === 'manage') { navigate('manage'); return; }
+      if (action === 'admin-login') { navigate(adminAuthenticated?'admin':'admin-login'); return; }
+      if (action === 'admin') { navigate('admin'); return; }
+      if (action === 'toggle-archives') { adminArchives=!adminArchives;renderAdminHome();return; }
+      if (action === 'copy-manager') {navigator.clipboard?.writeText(state.created?.manager_code||'').then(()=>showToast('Código copiado.')).catch(()=>showToast('Selecione e copie o código.'));return;}
+      if (action === 'copy-manage-text') {const d=state.created;const msg=`Código de gerenciamento DiaCerto: ${d.manager_code}\nGuarde este código em segurança. Sem ele você não conseguirá gerenciar esta reunião.`;navigator.clipboard?.writeText(msg).then(()=>showToast('Instruções copiadas.')).catch(()=>showToast('Copie o código acima.'));return;}
+      if (action === 'copy-invite') {const d=state.created;const msg=`Convite para a reunião: ${participantUrl(d.created_poll_id)}${d.participant_pin?'\nPIN de participação: '+d.participant_pin:''}`;navigator.clipboard?.writeText(msg).then(()=>showToast('Convite copiado.')).catch(()=>showToast('Copie o link e o PIN exibidos.'));return;}
+      if (action === 'created-manage') {const code=state.created?.manager_code;if(!code)return;ownerLoginRequest(code).then(result=>{ownerSession={token:result.token,id:result.poll_id};ownerAuthenticated=true;sessionStorage.setItem(OWNER_KEY,JSON.stringify(ownerSession));navigate('results',result.poll_id);}).catch(e=>showToast('Não foi possível entrar: '+e.message));return;}
+      if (action === 'archive') {const id=b.dataset.id,archived=b.dataset.archived==='true';archiveRequest(id,archived).then(()=>load()).catch(e=>showToast(e.message));return;}
+      if (action === 'delete') {const id=b.dataset.id;if(!confirm('Excluir definitivamente esta reunião e todas as respostas? Esta ação não pode ser desfeita.'))return;deleteRequest(id).then(()=>load()).catch(e=>showToast(e.message));return;}
+      if (action === 'toggle-status') {const next=state.poll.status==='closed'?'open':'closed';const warning=next==='closed'?'Encerrar votação? O link passará a mostrar os melhores dias e o mapa de calor. Não serão aceitas novas respostas.':'Reabrir votação? O link voltará a aceitar respostas e o resultado poderá mudar.';if(!confirm(warning))return;setStatus(next).then(()=>load()).then(()=>showToast(next==='closed'?'Votação encerrada. O resultado já está no link.':'Votação reaberta.')).catch(e=>showToast(e.message));return;}
       if (action === 'home') { navigate('home'); return; }
       if (action === 'results') { navigate('results', b.dataset.id); return; }
       if (action === 'logout') { logout(); return; }
       if (action === 'retry') { load(); return; }
       if (action === 'refresh') { load(); return; }
       if(action==='edit-start'){
+        if(state.poll.status==='closed'){showToast('Reabra a votação antes de editar horários.');return;}
         state.editOpen=true;
         state.editOriginal=pollSlots(state.poll);
         state.editSlots=new Set(state.editOriginal);
@@ -1126,8 +1216,8 @@
         state.editSlots=new Set([...state.editSlots].filter(s=>!days.has(splitSlot(s).date)));
         renderResults();return;
       }
-      if(action==='heat-prev-week'){state.heatWeekStart=addDays(state.heatWeekStart,-7);renderResults();return;}
-      if(action==='heat-next-week'){state.heatWeekStart=addDays(state.heatWeekStart,7);renderResults();return;}
+      if(action==='heat-prev-week'){state.heatWeekStart=addDays(state.heatWeekStart,-7);route.page==='participant'?renderParticipant():renderResults();return;}
+      if(action==='heat-next-week'){state.heatWeekStart=addDays(state.heatWeekStart,7);route.page==='participant'?renderParticipant():renderResults();return;}
       if(action==='individual-prev-week'){state.individualWeekStart=addDays(state.individualWeekStart,-7);renderResults();return;}
       if(action==='individual-next-week'){state.individualWeekStart=addDays(state.individualWeekStart,7);renderResults();return;}
       if (action === 'copy') { copyShare(); return; }
@@ -1237,12 +1327,17 @@
         if(wrap){wrap.scrollLeft=(wrap.scrollWidth-wrap.clientWidth)*Number(e.target.value)/100;syncCalendarScrollbar(wrap);}
       }
       if (e.target.id === 'person-name') state.person=e.target.value;
+      if(e.target.name==='privacy')state.draftPrivacy=e.target.value;
     });
     app.addEventListener('submit', e => {
       e.preventDefault();
       if (e.target.id === 'create-form') submitCreate(e.target);
       else if (e.target.id === 'vote-form') submitVote(e.target);
       else if (e.target.id === 'login-form') submitLogin(e.target);
+      else if (e.target.id === 'manager-form') submitManagerLogin(e.target);
+      else if (e.target.id === 'pin-form') {
+        (async()=>{try{const pin=e.target.querySelector('#participant-pin').value;const result=await participantUnlock(route.id,pin);state.participantAccessToken=result.access_token;sessionStorage.setItem(PARTICIPANT_PREFIX+route.id,state.participantAccessToken);await load();}catch(err){showToast(err.message||'PIN incorreto.');}})();
+      }
 
     });
     window.addEventListener('popstate', e => {
